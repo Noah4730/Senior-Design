@@ -17,7 +17,7 @@ unsigned long lastTime2 = 0;
 unsigned long lastFlush = 0;
 
 
-
+//commebt sapke
 void setup() {
 
   for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
