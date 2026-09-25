@@ -21,7 +21,7 @@ unsigned long lastTime3 = 0;
 
 
 
-void setup() {
+void setup() {                                                        // Initialize pins
   for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
     pinMode(thisPin, OUTPUT);
   }
@@ -38,9 +38,9 @@ void nbDelay();
 void flicker();
 
 
-void loop() {
+void loop() {                           // Main loop
 
-  while (digitalRead(A0) == HIGH) {
+  while (digitalRead(A0) == HIGH) {     // Trigger pin activates light routine
 
     switch (random(0, 10)) {
 
@@ -109,7 +109,7 @@ void loop() {
     speaker();
   }
 
-  for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
+  for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {     // Turn off all pins when trigger pin is LOW
     analogWrite(thisPin, 0);
   }
   noTone(13);
@@ -128,7 +128,7 @@ void loop() {
 
 }
 
-void logEvent(const char* type, int pin, const char* stateStr) {
+void logEvent(const char* type, int pin, const char* stateStr) {      // Log events to serial monitor
 
   if(digitalRead(A0) == LOW) return;
 
@@ -141,17 +141,17 @@ void logEvent(const char* type, int pin, const char* stateStr) {
   Serial.println(stateStr);
 }
 
-void runGreen() {
+void runGreen() {                                     // Run green light routine
   unsigned long now = millis();
 
-  if(digitalRead(A0) == LOW) return;
+  if(digitalRead(A0) == LOW) return;                  // If trigger pin is LOW, exit function
 
-  if (now - lastTime1 >= (unsigned long)rotSpeed) {
+  if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the green lights every rotSpeed milliseconds
     lastTime1 = now;
     startPin++;
     if (startPin > 12) startPin = 3;
 
-    if (state == 1) {
+    if (state == 1) {                                           // If green lights are on, turn off the previous set and turn on the next set
       for (int i = startPin - 1; i < startPin + 2; i++) {
         int x = i;
         if (x < 3) x = 12;
@@ -165,13 +165,13 @@ void runGreen() {
         int x = i;
         if (x > 12) x -= 10;
 
-        analogWrite(x, 255);
+        analogWrite(x, 255); 
         // logEvent("GREEN", x, "ON");
       }
     }
   }
 
-  if (now - lastTime2 >= (unsigned long)freqGreen) {
+  if (now - lastTime2 >= (unsigned long)freqGreen) {            // Toggle the green lights on and off every freqGreen milliseconds
     lastTime2 = now;
 
     if (state == 0) {
@@ -197,8 +197,7 @@ void runGreen() {
   }
 }
 
-void nbDelay(unsigned long ms) {
-
+void nbDelay(unsigned long ms) {          // Non-blocking delay function that allows other functions to run during the delay
   if(digitalRead(A0) == LOW) return;
 
   unsigned long t = millis();
@@ -209,7 +208,7 @@ void nbDelay(unsigned long ms) {
   }
 }
 
-void flicker(int thisPin, int duration, int brightness) {
+void flicker(int thisPin, int duration, int brightness) {       // Flicker a specific pin for a certain duration and brightness
 
   if(digitalRead(A0) == LOW) return;
   
@@ -239,7 +238,7 @@ void flicker(int thisPin, int duration, int brightness) {
   }
 }
 
-void speaker() {
+void speaker() {                                          // Control the speaker frequency and sweep
 
   if(digitalRead(A0) == LOW) return;
 
