@@ -15,7 +15,7 @@ int volumeStep = 0;
 unsigned long lastTime3 = 0;
 unsigned long volumePatternStart = 0;
 
-void setup() { // Configure pins and start the speaker controls
+void setup() {                                                  // Configure pins and start the speaker controls
   pinMode(speakerPin, OUTPUT);
   pinMode(volumePin, OUTPUT);
   pinMode(triggerPin, INPUT);
@@ -24,7 +24,7 @@ void setup() { // Configure pins and start the speaker controls
   randomSeed(analogRead(A3));
 }
 
-void loop() { // Run random volume patterns while the trigger is active
+void loop() {                                                   // Run random volume patterns while the trigger is active
   if (digitalRead(triggerPin) == HIGH) {
     if (volumePattern == -1) {
       volumePattern = random(0, 10);
@@ -46,9 +46,8 @@ void speaker() {
 
   unsigned long time = millis();
 
-  volumeLevel = constrain(volumeLevel, minimumVolume, maximumVolume);
   int speakerFreq = map(volumeLevel, minimumVolume, maximumVolume,
-                        minimumFrequency, maximumFrequency); // Map volume PWM to frequency.
+                        minimumFrequency, maximumFrequency);               // Map volume PWM to frequency.
 
   if (time - lastTime3 >= sweep) {
     lastTime3 = time;
@@ -56,7 +55,7 @@ void speaker() {
   }
 }
 
-void volume() { // Cycle through volume patterns and adjust the volume PWM accordingly
+void volume() {                                                            // Cycle through volume patterns and adjust the volume PWM accordingly
   int patternVolume = 0;
   unsigned long patternDuration = 100;
   unsigned long time = millis();
@@ -143,10 +142,10 @@ void volume() { // Cycle through volume patterns and adjust the volume PWM accor
       break;
   }
 
-  volumeLevel = constrain(patternVolume, minimumVolume, maximumVolume);
+  volumeLevel = constrain(patternVolume, minimumVolume, maximumVolume);   // Ensure volume level stays within the defined range
   analogWrite(volumePin, volumeLevel);
 
-  if (time - volumePatternStart >= patternDuration) {   // Move to the next step in the volume pattern
+  if (time - volumePatternStart >= patternDuration) {                     // Move to the next step in the volume pattern
     volumePatternStart = time;
     if (volumeStep == 2) {
       volumePattern = random(0, 10);
