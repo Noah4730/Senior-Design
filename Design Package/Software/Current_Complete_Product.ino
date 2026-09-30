@@ -42,7 +42,7 @@ void loop() {                           // Main loop
 
   while (digitalRead(A0) == HIGH) {     // Trigger pin activates light routine
 
-    switch (random(0, 10)) {
+    switch (random(0, 10)) {                    // Case Values generated with AI
 
       case 0:
         flicker(2, 350, 255); nbDelay(150);
