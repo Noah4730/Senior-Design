@@ -1,6 +1,11 @@
 #include <SPI.h>
 #include <SD.h>
 
+/*
+  Christina Walker: safety checks and data logging functions
+  Noah Schatz: light and sound control functions
+*/
+
 // const int chipSelect = 10;
 // File logFile;
 
@@ -21,6 +26,7 @@ unsigned long lastTime3 = 0;
 
 
 
+// Christina Walker - safety/input setup and data-logging behavior
 void setup() {                                                        // Initialize pins
   for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
     pinMode(thisPin, OUTPUT);
@@ -38,6 +44,7 @@ void nbDelay();
 void flicker();
 
 
+// Noah Schatz - main light and sound trigger loop
 void loop() {                           // Main loop
 
   while (digitalRead(A0) == HIGH) {     // Trigger pin activates light routine
@@ -115,19 +122,22 @@ void loop() {                           // Main loop
   noTone(13);
   state = 0;
 
+  // Christina Walker - safety/data logging readout
   int sensorValue = analogRead(A1); //
   float dB = 30 + (sensorValue / 1023.0) * 104; //sensorValue/1023.0: divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
 
-    Serial.print(millis());
-    Serial.print(", ");
-    Serial.print(sensorValue);
-    Serial.print(", ");
-    Serial.println(dB);
+  // Christina Walker - serial logging output for safety monitoring
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
 
 }
 
+// Christina Walker - safety and logging helper
 void logEvent(const char* type, int pin, const char* stateStr) {      // Log events to serial monitor
 
   if(digitalRead(A0) == LOW) return;
@@ -141,6 +151,7 @@ void logEvent(const char* type, int pin, const char* stateStr) {      // Log eve
   Serial.println(stateStr);
 }
 
+// Noah Schatz - green LED light routine
 void runGreen() {                                     // Run green light routine
   unsigned long now = millis();
 
@@ -197,6 +208,7 @@ void runGreen() {                                     // Run green light routine
   }
 }
 
+// Noah Schatz - non-blocking timing helper for light/sound sequencing
 void nbDelay(unsigned long ms) {          // Non-blocking delay function that allows other functions to run during the delay
   if(digitalRead(A0) == LOW) return;
 
@@ -208,6 +220,7 @@ void nbDelay(unsigned long ms) {          // Non-blocking delay function that al
   }
 }
 
+// Noah Schatz - white LED strobe/flicker routine
 void flicker(int thisPin, int duration, int brightness) {       // Flicker a specific pin for a certain duration and brightness
 
   if(digitalRead(A0) == LOW) return;
@@ -238,22 +251,26 @@ void flicker(int thisPin, int duration, int brightness) {       // Flicker a spe
   }
 }
 
+// Noah Schatz - sound control routine
 void speaker() {                                          // Control the speaker frequency and sweep
+
 
   if(digitalRead(A0) == LOW) return;
 
+  // Christina Walker - data logging during sound activation
   int sensorValue = analogRead(A1); //
   float dB = 30 + (sensorValue / 1023.0) * 104; //sensorValue/1023.0: divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
 
-    Serial.print(millis());
-    Serial.print(", ");
-    Serial.print(sensorValue);
-    Serial.print(", ");
-    Serial.println(dB);
+  // Christina Walker - serial output for sound-trigger logging
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
 
-
+  // Noah Schatz - audio output behavior
   unsigned long time = millis();
 
   if(time - lastTime3 >= sweep) {

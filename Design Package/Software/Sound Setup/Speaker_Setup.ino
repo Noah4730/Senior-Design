@@ -1,5 +1,10 @@
 #include <Arduino.h>
 
+/*
+  Noah Schatz
+  Speaker setup and audio control routines
+*/
+
 const int speakerPin = 13;
 const int volumePin = 12;
 const int triggerPin = A0;
