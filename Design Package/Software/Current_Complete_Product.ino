@@ -9,19 +9,30 @@
 // const int chipSelect = 10;
 // File logFile;
 
-const int lowestPin = 2;
-const int highestPin = 13;
+const int lowestPin = 3;
+const int highestPin = 11;
+const int speakerPin = 13;
+const int volumePin = 12;
+const int triggerPin = A0;
+const int minimumVolume = 100;
+const int maximumVolume = 255;
+const int minimumFrequency = 3000;
+const int maximumFrequency = 10000;
 
 int freqGreen = 35;
 int freqWhite = 40;
 int rotSpeed = 28;
 int speakerFreq = 1000;
 int sweep = 50;
+int volumeLevel = minimumVolume;
+int volumePattern = -1;
+int volumeStep = 0;
 int state = 0;
 int startPin = 3;
 unsigned long lastTime1 = 0;
 unsigned long lastTime2 = 0;
 unsigned long lastTime3 = 0;
+unsigned long volumePatternStart = 0;
 
 
 
@@ -31,9 +42,13 @@ void setup() {                                                        // Initial
   for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
     pinMode(thisPin, OUTPUT);
   }
-  pinMode(A0, INPUT);
+  pinMode(speakerPin, OUTPUT);
+  pinMode(volumePin, OUTPUT);
+  pinMode(triggerPin, INPUT);
   pinMode(A1, INPUT);
 
+  analogWrite(volumePin, volumeLevel);
+  randomSeed(analogRead(A3));
   Serial.begin(115200);
 }
 
@@ -112,14 +127,23 @@ void loop() {                           // Main loop
         break;
     }
 
+    if (volumePattern == -1) {
+      volumePattern = random(0, 10);
+      volumeStep = 0;
+      volumePatternStart = millis();
+    }
+
     runGreen();
+    volume();
     speaker();
   }
 
   for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {     // Turn off all pins when trigger pin is LOW
     analogWrite(thisPin, 0);
   }
-  noTone(13);
+  noTone(speakerPin);
+  analogWrite(volumePin, 0);
+  volumePattern = -1;
   state = 0;
 
   // Christina Walker - safety/data logging readout
@@ -160,13 +184,13 @@ void runGreen() {                                     // Run green light routine
   if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the green lights every rotSpeed milliseconds
     lastTime1 = now;
     startPin++;
-    if (startPin > 12) startPin = 3;
+    if (startPin > 11) startPin = 3;
 
     if (state == 1) {                                           // If green lights are on, turn off the previous set and turn on the next set
       for (int i = startPin - 1; i < startPin + 2; i++) {
         int x = i;
-        if (x < 3) x = 12;
-        if (x > 12) x -= 10;
+        if (x < 3) x = 11;
+        if (x > 11) x = 3;
 
         analogWrite(x, 0);
         // logEvent("GREEN", x, "OFF");
@@ -174,7 +198,7 @@ void runGreen() {                                     // Run green light routine
 
       for (int i = startPin; i < startPin + 3; i++) {
         int x = i;
-        if (x > 12) x -= 10;
+        if (x > 11) x = 3;
 
         analogWrite(x, 255); 
         // logEvent("GREEN", x, "ON");
@@ -188,7 +212,7 @@ void runGreen() {                                     // Run green light routine
     if (state == 0) {
       for (int i = startPin; i < startPin + 3; i++) {
         int x = i;
-        if (x > 12) x -= 10;
+        if (x > 11) x = 3;
 
         analogWrite(x, 255);
         // logEvent("GREEN", x, "ON");
@@ -198,7 +222,7 @@ void runGreen() {                                     // Run green light routine
     } else {
       for (int i = startPin; i < startPin + 3; i++) {
         int x = i;
-        if (x > 12) x -= 10;
+        if (x > 11) x = 3;
 
         analogWrite(x, 0);
         // logEvent("GREEN", x, "OFF");
@@ -253,9 +277,7 @@ void flicker(int thisPin, int duration, int brightness) {       // Flicker a spe
 
 // Noah Schatz - sound control routine
 void speaker() {                                          // Control the speaker frequency and sweep
-
-
-  if(digitalRead(A0) == LOW) return;
+  if (digitalRead(triggerPin) == LOW) return;
 
   // Christina Walker - data logging during sound activation
   int sensorValue = analogRead(A1); //
@@ -270,16 +292,120 @@ void speaker() {                                          // Control the speaker
   Serial.print(", ");
   Serial.println(dB);
 
-  // Noah Schatz - audio output behavior
+  unsigned long time = millis();
+  int speakerFreq = map(volumeLevel, minimumVolume, maximumVolume,
+                        minimumFrequency, maximumFrequency);               // Map volume PWM to frequency.
+
+  if (time - lastTime3 >= sweep) {
+    lastTime3 = time;
+    tone(speakerPin, speakerFreq);
+  }
+}
+
+void volume() {                                                            // Cycle through volume patterns and adjust the volume PWM accordingly
+  int patternVolume = 0;
+  unsigned long patternDuration = 100;
   unsigned long time = millis();
 
-  if(time - lastTime3 >= sweep) {
-    lastTime3 = time;
-    tone(13, speakerFreq);
-    speakerFreq = speakerFreq + 100;
+  if (digitalRead(triggerPin) == LOW) {
+    noTone(speakerPin);
+    analogWrite(volumePin, 0);
+    volumePattern = -1;
+    return;
   }
 
-  if(speakerFreq > 3000) {
-    speakerFreq = 1000;
+  switch (volumePattern) {
+    case 0:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 120; break;
+        case 1: patternVolume = 40; patternDuration = 240; break;
+        case 2: patternVolume = 160; patternDuration = 100; break;
+      }
+      break;
+
+    case 1:
+      switch (volumeStep) {
+        case 0: patternVolume = 30; patternDuration = 200; break;
+        case 1: patternVolume = 255; patternDuration = 80; break;
+        case 2: patternVolume = 20; patternDuration = 220; break;
+      }
+      break;
+
+    case 2:
+      switch (volumeStep) {
+        case 0: patternVolume = 80; patternDuration = 150; break;
+        case 1: patternVolume = 180; patternDuration = 150; break;
+        case 2: patternVolume = 255; patternDuration = 150; break;
+      }
+      break;
+
+    case 3:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 60; break;
+        case 1: patternVolume = 0; patternDuration = 60; break;
+        case 2: patternVolume = 255; patternDuration = 60; break;
+      }
+      break;
+
+    case 4:
+      switch (volumeStep) {
+        case 0: patternVolume = 20; patternDuration = 300; break;
+        case 1: patternVolume = 120; patternDuration = 200; break;
+        case 2: patternVolume = 240; patternDuration = 100; break;
+      }
+      break;
+
+    case 5:
+      switch (volumeStep) {
+        case 0: patternVolume = 220; patternDuration = 100; break;
+        case 1: patternVolume = 60; patternDuration = 100; break;
+        case 2: patternVolume = 220; patternDuration = 100; break;
+      }
+      break;
+
+    case 6:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 200; break;
+        case 1: patternVolume = 100; patternDuration = 100; break;
+        case 2: patternVolume = 30; patternDuration = 300; break;
+      }
+      break;
+
+    case 7:
+      switch (volumeStep) {
+        case 0: patternVolume = 50; patternDuration = 80; break;
+        case 1: patternVolume = 200; patternDuration = 80; break;
+        case 2: patternVolume = 50; patternDuration = 80; break;
+      }
+      break;
+
+    case 8:
+      switch (volumeStep) {
+        case 0: patternVolume = 150; patternDuration = 250; break;
+        case 1: patternVolume = 0; patternDuration = 120; break;
+        case 2: patternVolume = 255; patternDuration = 250; break;
+      }
+      break;
+
+    case 9:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 50; break;
+        case 1: patternVolume = 150; patternDuration = 50; break;
+        case 2: patternVolume = 30; patternDuration = 250; break;
+      }
+      break;
+  }
+
+  volumeLevel = constrain(patternVolume, minimumVolume, maximumVolume);   // Ensure volume level stays within the defined range
+  analogWrite(volumePin, volumeLevel);
+
+  if (time - volumePatternStart >= patternDuration) {                     // Move to the next step in the volume pattern
+    volumePatternStart = time;
+    if (volumeStep == 2) {
+      volumePattern = random(0, 10);
+      volumeStep = 0;
+    } else {
+      volumeStep++;
+    }
   }
 }
