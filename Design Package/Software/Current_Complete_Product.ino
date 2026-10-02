@@ -233,7 +233,7 @@ void runGreen() {                                     // Run green light routine
 }
 
 // Noah Schatz - non-blocking timing helper for light/sound sequencing
-void sysTime(unsigned long ms) {          // Non-blocking delay function that allows other functions to run during the delay
+void sysTime(unsigned long ms) {          // Delay function based on system time that allows semi parallel functions
   if(digitalRead(A0) == LOW) return;
 
   unsigned long t = millis();
