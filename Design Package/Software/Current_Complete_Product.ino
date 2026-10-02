@@ -206,7 +206,7 @@ void runGreen() {                                     // Run green light routine
     }
   }
 
-  if (now - lastTime2 >= (unsigned long)freqGreen) {            // Toggle the green lights on and off every freqGreen milliseconds
+  if (now - lastTime2 >= (unsigned long)freqGreen) {       // Toggle the green lights on and off every freqGreen milliseconds
     lastTime2 = now;
 
     if (state == 0) {
@@ -245,7 +245,7 @@ void sysTime(unsigned long ms) {          // Delay function based on system time
 }
 
 // Noah Schatz - white LED strobe/flicker routine
-void flicker(int thisPin, int duration, int brightness) {       // Flicker a specific pin for a certain duration and brightness
+void flicker(int thisPin, int duration, int brightness) {  // Flicker a specific pin for a certain duration and brightness
 
   if(digitalRead(A0) == LOW) return;
   
@@ -276,7 +276,7 @@ void flicker(int thisPin, int duration, int brightness) {       // Flicker a spe
 }
 
 // Noah Schatz - sound control routine
-void speaker() {                                          // Control the speaker frequency and sweep
+void speaker() {                                     // Control the speaker frequency and sweep
   if (digitalRead(triggerPin) == LOW) return;
 
   // Christina Walker - data logging during sound activation
@@ -294,7 +294,7 @@ void speaker() {                                          // Control the speaker
 
   unsigned long time = millis();
   int speakerFreq = map(volumeLevel, minimumVolume, maximumVolume,
-                        minimumFrequency, maximumFrequency);               // Map volume PWM to frequency.
+                        minimumFrequency, maximumFrequency);        // Map volume PWM to frequency.
 
   if (time - lastTime3 >= sweep) {
     lastTime3 = time;
@@ -302,7 +302,7 @@ void speaker() {                                          // Control the speaker
   }
 }
 
-void volume() {                                                            // Cycle through volume patterns and adjust the volume PWM accordingly
+void volume() {              // Cycle through volume patterns and adjust the volume PWM accordingly
   int patternVolume = 0;
   unsigned long patternDuration = 100;
   unsigned long time = millis();
