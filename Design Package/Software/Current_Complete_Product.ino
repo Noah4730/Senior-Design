@@ -60,7 +60,7 @@ void flicker();
 
 
 // Noah Schatz - main light and sound trigger loop
-void loop() {                           // Main loop
+void loop() {                           // Main loop with white light algorithm and major function calls
 
   while (digitalRead(A0) == HIGH) {     // Trigger pin activates light routine
 
