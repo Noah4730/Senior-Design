@@ -55,7 +55,7 @@ void setup() {                                                        // Initial
 
 void logEvent();
 void runGreen();
-void nbDelay();
+void sysTime();
 void flicker();
 
 
@@ -67,63 +67,63 @@ void loop() {                           // Main loop
     switch (random(0, 10)) {                    // Case Values generated with AI
 
       case 0:
-        flicker(2, 350, 255); nbDelay(150);
-        flicker(2, 800, 255); nbDelay(80);
-        flicker(2, 200, 255); nbDelay(200);
+        flicker(2, 350, 255); sysTime(150);
+        flicker(2, 800, 255); sysTime(80);
+        flicker(2, 200, 255); sysTime(200);
         break;
 
       case 1:
-        flicker(2, 600, 255); nbDelay(50);
-        flicker(2, 250, 255); nbDelay(180);
-        flicker(2, 750, 255); nbDelay(120);
+        flicker(2, 600, 255); sysTime(50);
+        flicker(2, 250, 255); sysTime(180);
+        flicker(2, 750, 255); sysTime(120);
         break;
 
       case 2:
-        flicker(2, 800, 255); nbDelay(30);
-        flicker(2, 300, 255); nbDelay(200);
-        flicker(2, 550, 255); nbDelay(90);
+        flicker(2, 800, 255); sysTime(30);
+        flicker(2, 300, 255); sysTime(200);
+        flicker(2, 550, 255); sysTime(90);
         break;
 
       case 3:
-        flicker(2, 400, 255); nbDelay(100);
-        flicker(2, 700, 255); nbDelay(60);
-        flicker(2, 150, 255); nbDelay(190);
+        flicker(2, 400, 255); sysTime(100);
+        flicker(2, 700, 255); sysTime(60);
+        flicker(2, 150, 255); sysTime(190);
         break;
 
       case 4:
-        flicker(2, 200, 255); nbDelay(170);
-        flicker(2, 650, 255); nbDelay(40);
-        flicker(2, 800, 255); nbDelay(130);
+        flicker(2, 200, 255); sysTime(170);
+        flicker(2, 650, 255); sysTime(40);
+        flicker(2, 800, 255); sysTime(130);
         break;
 
       case 5:
-        flicker(2, 500, 255); nbDelay(80);
-        flicker(2, 100, 255); nbDelay(200);
-        flicker(2, 750, 255); nbDelay(50);
+        flicker(2, 500, 255); sysTime(80);
+        flicker(2, 100, 255); sysTime(200);
+        flicker(2, 750, 255); sysTime(50);
         break;
 
       case 6:
-        flicker(2, 800, 255); nbDelay(20);
-        flicker(2, 350, 255); nbDelay(160);
-        flicker(2, 600, 255); nbDelay(110);
+        flicker(2, 800, 255); sysTime(20);
+        flicker(2, 350, 255); sysTime(160);
+        flicker(2, 600, 255); sysTime(110);
         break;
 
       case 7:
-        flicker(2, 450, 255); nbDelay(200);
-        flicker(2, 800, 255); nbDelay(70);
-        flicker(2, 300, 255); nbDelay(140);
+        flicker(2, 450, 255); sysTime(200);
+        flicker(2, 800, 255); sysTime(70);
+        flicker(2, 300, 255); sysTime(140);
         break;
 
       case 8:
-        flicker(2, 700, 255); nbDelay(110);
-        flicker(2, 200, 255); nbDelay(190);
-        flicker(2, 500, 255); nbDelay(60);
+        flicker(2, 700, 255); sysTime(110);
+        flicker(2, 200, 255); sysTime(190);
+        flicker(2, 500, 255); sysTime(60);
         break;
 
       case 9:
-        flicker(2, 250, 255); nbDelay(30);
-        flicker(2, 800, 255); nbDelay(150);
-        flicker(2, 400, 255); nbDelay(200);
+        flicker(2, 250, 255); sysTime(30);
+        flicker(2, 800, 255); sysTime(150);
+        flicker(2, 400, 255); sysTime(200);
         break;
     }
 
@@ -233,7 +233,7 @@ void runGreen() {                                     // Run green light routine
 }
 
 // Noah Schatz - non-blocking timing helper for light/sound sequencing
-void nbDelay(unsigned long ms) {          // Non-blocking delay function that allows other functions to run during the delay
+void sysTime(unsigned long ms) {          // Non-blocking delay function that allows other functions to run during the delay
   if(digitalRead(A0) == LOW) return;
 
   unsigned long t = millis();
