@@ -9,18 +9,38 @@
 // const int chipSelect = 10;
 // File logFile;
 
-const int lowestPin = 3;
-const int highestPin = 11;
-const int speakerPin = 13;
-const int volumePin = 12;
-const int triggerPin = A0;
+// ESP32 pin assignments (GPIO numbers)
+const int greenPins[] = {16, 17, 18, 19, 21};   // Green LED PWM outputs (green pins 1-5, flicker by flickerMode)
+const int whitePins[] = {22, 23, 25, 26, 27};   // White LED PWM outputs (rotate one at a time)
+const int numGreenPins = 5;
+const int numWhitePins = 5;
+const int speakerPin = 32;
+const int volumePin = 33;
+const int triggerPin = 34;                      // Input-only pin, no internal pull-up/pull-down
+const int soundSensorPin = 35;                  // Input-only ADC pin for the sound level sensor
 const int minimumVolume = 100;
 const int maximumVolume = 255;
 const int minimumFrequency = 3000;
 const int maximumFrequency = 10000;
+const int minimumFlicker = 100;                 // Shortest green flicker duration (ms)
+const int maximumFlicker = 800;                 // Longest green flicker duration (ms)
+const int minimumPause = 20;                    // Shortest pause between green flickers (ms)
+const int maximumPause = 200;                   // Longest pause between green flickers (ms)
 
-int freqGreen = 35;
-int freqWhite = 40;
+// Green flicker patterns for modes 1-3: each row is one flash, listing green pin numbers 1-5 (0 = unused)
+const int greenPatternSteps = 5;
+const int greenPatterns[3][greenPatternSteps][3] = {
+  {{1, 0, 0}, {3, 0, 0}, {5, 0, 0}, {2, 0, 0}, {4, 0, 0}},   // Mode 1: star, one pin at a time
+  {{1, 2, 0}, {4, 3, 0}, {5, 1, 0}, {2, 3, 0}, {5, 4, 0}},   // Mode 2: two pins at a time
+  {{1, 2, 3}, {3, 4, 5}, {5, 1, 2}, {2, 3, 4}, {4, 5, 1}}    // Mode 3: three pins at a time
+};
+
+int freqWhite = 35;
+int freqGreen = 40;
+int greenBrightness = 255;                      // Brightness for all green pins (0-255)
+int whiteBrightness = 255;                      // Brightness for all white pins (0-255)
+int flickerMode = 0;                            // 0 = all at once, 1 = star, 2 = two at a time, 3 = three at a time
+int greenStep = 0;                              // Current flash in the green flicker pattern
 int rotSpeed = 28;
 int speakerFreq = 1000;
 int sweep = 50;
@@ -28,7 +48,7 @@ int volumeLevel = minimumVolume;
 int volumePattern = -1;
 int volumeStep = 0;
 int state = 0;
-int startPin = 3;
+int whiteIndex = 0;
 unsigned long lastTime1 = 0;
 unsigned long lastTime2 = 0;
 unsigned long lastTime3 = 0;
@@ -39,93 +59,35 @@ unsigned long volumePatternStart = 0;
 
 // Christina Walker - safety/input setup and data-logging behavior
 void setup() {                                                        // Initialize pins
-  for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {
-    pinMode(thisPin, OUTPUT);
+  for (int i = 0; i < numGreenPins; i++) {
+    pinMode(greenPins[i], OUTPUT);
+  }
+  for (int i = 0; i < numWhitePins; i++) {
+    pinMode(whitePins[i], OUTPUT);
   }
   pinMode(speakerPin, OUTPUT);
   pinMode(volumePin, OUTPUT);
   pinMode(triggerPin, INPUT);
-  pinMode(A1, INPUT);
+  pinMode(soundSensorPin, INPUT);
 
   analogWrite(volumePin, volumeLevel);
-  randomSeed(analogRead(A3));
   Serial.begin(115200);
 }
 
 
 void logEvent();
-void runGreen();
+void runWhite();
 void sysTime();
 void flicker();
 
 
 // Noah Schatz - main light and sound trigger loop
-void loop() {                           // Main loop with white light algorithm and major function calls
+void loop() {                           // Main loop with green light algorithm and major function calls
 
-  while (digitalRead(A0) == HIGH) {     // Trigger pin activates light routine
+  while (digitalRead(triggerPin) == HIGH) {     // Trigger pin activates light routine
 
-    switch (random(0, 10)) {                    // Case Values generated with AI
-
-      case 0:
-        flicker(2, 350, 255); sysTime(150);
-        flicker(2, 800, 255); sysTime(80);
-        flicker(2, 200, 255); sysTime(200);
-        break;
-
-      case 1:
-        flicker(2, 600, 255); sysTime(50);
-        flicker(2, 250, 255); sysTime(180);
-        flicker(2, 750, 255); sysTime(120);
-        break;
-
-      case 2:
-        flicker(2, 800, 255); sysTime(30);
-        flicker(2, 300, 255); sysTime(200);
-        flicker(2, 550, 255); sysTime(90);
-        break;
-
-      case 3:
-        flicker(2, 400, 255); sysTime(100);
-        flicker(2, 700, 255); sysTime(60);
-        flicker(2, 150, 255); sysTime(190);
-        break;
-
-      case 4:
-        flicker(2, 200, 255); sysTime(170);
-        flicker(2, 650, 255); sysTime(40);
-        flicker(2, 800, 255); sysTime(130);
-        break;
-
-      case 5:
-        flicker(2, 500, 255); sysTime(80);
-        flicker(2, 100, 255); sysTime(200);
-        flicker(2, 750, 255); sysTime(50);
-        break;
-
-      case 6:
-        flicker(2, 800, 255); sysTime(20);
-        flicker(2, 350, 255); sysTime(160);
-        flicker(2, 600, 255); sysTime(110);
-        break;
-
-      case 7:
-        flicker(2, 450, 255); sysTime(200);
-        flicker(2, 800, 255); sysTime(70);
-        flicker(2, 300, 255); sysTime(140);
-        break;
-
-      case 8:
-        flicker(2, 700, 255); sysTime(110);
-        flicker(2, 200, 255); sysTime(190);
-        flicker(2, 500, 255); sysTime(60);
-        break;
-
-      case 9:
-        flicker(2, 250, 255); sysTime(30);
-        flicker(2, 800, 255); sysTime(150);
-        flicker(2, 400, 255); sysTime(200);
-        break;
-    }
+    flicker(random(minimumFlicker, maximumFlicker + 1));     // Flicker green for a random duration
+    sysTime(random(minimumPause, maximumPause + 1));         // Pause green for a random duration
 
     if (volumePattern == -1) {
       volumePattern = random(0, 10);
@@ -133,22 +95,24 @@ void loop() {                           // Main loop with white light algorithm 
       volumePatternStart = millis();
     }
 
-    runGreen();
+    runWhite();
     volume();
     speaker();
   }
 
-  for (int thisPin = lowestPin; thisPin <= highestPin; thisPin++) {     // Turn off all pins when trigger pin is LOW
-    analogWrite(thisPin, 0);
+  setGreen(0);                                                          // Turn off all lights when trigger pin is LOW
+  for (int i = 0; i < numWhitePins; i++) {
+    analogWrite(whitePins[i], 0);
   }
   noTone(speakerPin);
   analogWrite(volumePin, 0);
   volumePattern = -1;
   state = 0;
+  greenStep = 0;
 
   // Christina Walker - safety/data logging readout
-  int sensorValue = analogRead(A1); //
-  float dB = 30 + (sensorValue / 1023.0) * 104; //sensorValue/1023.0: divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
 
@@ -164,7 +128,7 @@ void loop() {                           // Main loop with white light algorithm 
 // Christina Walker - safety and logging helper
 void logEvent(const char* type, int pin, const char* stateStr) {      // Log events to serial monitor
 
-  if(digitalRead(A0) == LOW) return;
+  if(digitalRead(triggerPin) == LOW) return;
 
   Serial.print(millis());
   Serial.print(",");
@@ -175,58 +139,37 @@ void logEvent(const char* type, int pin, const char* stateStr) {      // Log eve
   Serial.println(stateStr);
 }
 
-// Noah Schatz - green LED light routine
-void runGreen() {                                     // Run green light routine
+// Noah Schatz - white LED light routine
+void runWhite() {                                     // Run white light routine
   unsigned long now = millis();
 
-  if(digitalRead(A0) == LOW) return;                  // If trigger pin is LOW, exit function
+  if(digitalRead(triggerPin) == LOW) return;                  // If trigger pin is LOW, exit function
 
-  if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the green lights every rotSpeed milliseconds
+  if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the white lights every rotSpeed milliseconds
     lastTime1 = now;
-    startPin++;
-    if (startPin > 11) startPin = 3;
+    analogWrite(whitePins[whiteIndex], 0);                      // Turn off the current pin before moving to the next one
+    // logEvent("WHITE", whitePins[whiteIndex], "OFF");
 
-    if (state == 1) {                                           // If green lights are on, turn off the previous set and turn on the next set
-      for (int i = startPin - 1; i < startPin + 2; i++) {
-        int x = i;
-        if (x < 3) x = 11;
-        if (x > 11) x = 3;
+    whiteIndex++;
+    if (whiteIndex >= numWhitePins) whiteIndex = 0;
 
-        analogWrite(x, 0);
-        // logEvent("GREEN", x, "OFF");
-      }
-
-      for (int i = startPin; i < startPin + 3; i++) {
-        int x = i;
-        if (x > 11) x = 3;
-
-        analogWrite(x, 255); 
-        // logEvent("GREEN", x, "ON");
-      }
+    if (state == 1) {                                           // If white lights are on, turn on only the next pin
+      analogWrite(whitePins[whiteIndex], whiteBrightness);
+      // logEvent("WHITE", whitePins[whiteIndex], "ON");
     }
   }
 
-  if (now - lastTime2 >= (unsigned long)freqGreen) {       // Toggle the green lights on and off every freqGreen milliseconds
+  if (now - lastTime2 >= (unsigned long)freqWhite) {       // Toggle the active white light on and off every freqWhite milliseconds
     lastTime2 = now;
 
     if (state == 0) {
-      for (int i = startPin; i < startPin + 3; i++) {
-        int x = i;
-        if (x > 11) x = 3;
-
-        analogWrite(x, 255);
-        // logEvent("GREEN", x, "ON");
-      }
+      analogWrite(whitePins[whiteIndex], whiteBrightness);
+      // logEvent("WHITE", whitePins[whiteIndex], "ON");
       state = 1;
 
     } else {
-      for (int i = startPin; i < startPin + 3; i++) {
-        int x = i;
-        if (x > 11) x = 3;
-
-        analogWrite(x, 0);
-        // logEvent("GREEN", x, "OFF");
-      }
+      analogWrite(whitePins[whiteIndex], 0);
+      // logEvent("WHITE", whitePins[whiteIndex], "OFF");
       state = 0;
     }
   }
@@ -234,42 +177,65 @@ void runGreen() {                                     // Run green light routine
 
 // Noah Schatz - non-blocking timing helper for light/sound sequencing
 void sysTime(unsigned long ms) {          // Delay function based on system time that allows semi parallel functions
-  if(digitalRead(A0) == LOW) return;
+  if(digitalRead(triggerPin) == LOW) return;
 
   unsigned long t = millis();
   while (millis() - t < ms) {
-    if(digitalRead(A0) == LOW) return;
-    runGreen();
+    if(digitalRead(triggerPin) == LOW) return;
+    runWhite();
     speaker();
   }
 }
 
-// Noah Schatz - white LED strobe/flicker routine
-void flicker(int thisPin, int duration, int brightness) {  // Flicker a specific pin for a certain duration and brightness
+// Noah Schatz - set every green LED pin to the same brightness
+void setGreen(int brightness) {
+  for (int i = 0; i < numGreenPins; i++) {
+    analogWrite(greenPins[i], brightness);
+  }
+}
 
-  if(digitalRead(A0) == LOW) return;
-  
+// Noah Schatz - turn on the green pins for the current flash of the selected flicker mode
+void showGreenStep() {
+  if (flickerMode < 1 || flickerMode > 3) {               // Mode 0 (or invalid): all pins at once
+    setGreen(greenBrightness);
+    return;
+  }
+
+  for (int j = 0; j < 3; j++) {
+    int pinNumber = greenPatterns[flickerMode - 1][greenStep][j];
+    if (pinNumber > 0) analogWrite(greenPins[pinNumber - 1], greenBrightness);
+  }
+
+  greenStep++;                                             // Advance to the next flash in the pattern
+  if (greenStep >= greenPatternSteps) greenStep = 0;
+}
+
+// Noah Schatz - green LED strobe/flicker routine
+void flicker(int duration) {  // Flicker green pins for a certain duration at greenBrightness using flickerMode
+
+  if(digitalRead(triggerPin) == LOW) return;
+
   for (int i = 0; i < (duration / 70); i++) {
 
-    if(digitalRead(A0) == LOW) return;
+    if(digitalRead(triggerPin) == LOW) return;
 
-    analogWrite(thisPin, brightness);
-    // logEvent("WHITE", thisPin, "ON");
+    showGreenStep();
+    // logEvent("GREEN", greenPins[0], "ON");
 
     unsigned long t = millis();
-    while (millis() - t < (unsigned long)freqWhite) {
-      if(digitalRead(A0) == LOW) { analogWrite(thisPin, 0); return; }
-      runGreen();
+    while (millis() - t < (unsigned long)freqGreen) {
+      if(digitalRead(triggerPin) == LOW) { setGreen(0); return; }
+      runWhite();
       speaker();
     }
 
-    analogWrite(thisPin, 0);
-    // logEvent("WHITE", thisPin, "OFF");
+    setGreen(0);
+    // logEvent("GREEN", greenPins[0], "OFF");
 
     t = millis();
-    while (millis() - t < (unsigned long)freqWhite) {
-      if(digitalRead(A0) == LOW) return;
-      runGreen();
+    while (millis() - t < (unsigned long)freqGreen) {
+      if(digitalRead(triggerPin) == LOW) return;
+      runWhite();
       speaker();
     }
   }
@@ -280,8 +246,8 @@ void speaker() {                                     // Control the speaker freq
   if (digitalRead(triggerPin) == LOW) return;
 
   // Christina Walker - data logging during sound activation
-  int sensorValue = analogRead(A1); //
-  float dB = 30 + (sensorValue / 1023.0) * 104; //sensorValue/1023.0: divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
 
