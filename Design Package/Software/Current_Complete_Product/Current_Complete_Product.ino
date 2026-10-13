@@ -9,30 +9,29 @@
 // const int chipSelect = 10;
 // File logFile;
 
-// ESP32 pin assignments (GPIO numbers)
-const int greenPins[] = {16, 17, 18, 19, 21};   // Green LED PWM outputs (green pins 1-5, flicker by flickerMode)
-const int whitePins[] = {22, 23, 25, 26, 27};   // White LED PWM outputs (rotate one at a time)
+const int greenPins[] = {16, 17, 18, 19, 21};
+const int whitePins[] = {22, 23, 25, 26, 27};
 const int numGreenPins = 5;
 const int numWhitePins = 5;
 const int speakerPin = 32;
 const int volumePin = 33;
-const int triggerPin = 34;                      // Input-only pin, no internal pull-up/pull-down
-const int soundSensorPin = 35;                  // Input-only ADC pin for the sound level sensor
+const int triggerPin = 34;
+const int soundSensorPin = 35;
 const int minimumVolume = 100;
 const int maximumVolume = 255;
 const int minimumFrequency = 3000;
 const int maximumFrequency = 10000;
-const int minimumFlicker = 100;                 // Shortest green flicker duration (ms)
-const int maximumFlicker = 800;                 // Longest green flicker duration (ms)
-const int minimumPause = 20;                    // Shortest pause between green flickers (ms)
-const int maximumPause = 200;                   // Longest pause between green flickers (ms)
+const int minimumFlicker = 100;
+const int maximumFlicker = 800;
+const int minimumPause = 20;
+const int maximumPause = 200;
 
-// Green flicker patterns for modes 1-3: each row is one flash, listing green pin numbers 1-5 (0 = unused)
+
 const int greenPatternSteps = 5;
-const int greenPatterns[3][greenPatternSteps][3] = {
-  {{1, 0, 0}, {3, 0, 0}, {5, 0, 0}, {2, 0, 0}, {4, 0, 0}},   // Mode 1: star, one pin at a time
-  {{1, 2, 0}, {4, 3, 0}, {5, 1, 0}, {2, 3, 0}, {5, 4, 0}},   // Mode 2: two pins at a time
-  {{1, 2, 3}, {3, 4, 5}, {5, 1, 2}, {2, 3, 4}, {4, 5, 1}}    // Mode 3: three pins at a time
+const int greenPatterns[3][greenPatternSteps][3] = {         // Green flicker patterns for modes 1-3
+  {{1, 0, 0}, {3, 0, 0}, {5, 0, 0}, {2, 0, 0}, {4, 0, 0}},   // star, one pin at a time
+  {{1, 2, 0}, {4, 3, 0}, {5, 1, 0}, {2, 3, 0}, {5, 4, 0}},   // two pins at a time
+  {{1, 2, 3}, {3, 4, 5}, {5, 1, 2}, {2, 3, 4}, {4, 5, 1}}    // three pins at a time
 };
 
 int freqWhite = 35;
