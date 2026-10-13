@@ -17,10 +17,18 @@ const int speakerPin = 32;
 const int volumePin = 33;
 const int triggerPin = 34;
 const int soundSensorPin = 35;
-const int minimumVolume = 100;
-const int maximumVolume = 255;
+const int LVmin = 20;
+const int LVmax = 80;
+const int HVmin = 120;
+const int HVmax = 255;
+const int RMSout = 160;
+const int minimumLVDuration = 250;
+const int maximumLVDuration = 750;
+const int minimumHVDuration = 500;
+const int maximumHVDuration = 1500;
 const int minimumFrequency = 3000;
 const int maximumFrequency = 10000;
+const int frequencyOffset = 3000;
 const int minimumFlicker = 100;
 const int maximumFlicker = 800;
 const int minimumPause = 20;
@@ -43,15 +51,17 @@ int greenStep = 0;                              // Current flash in the green fl
 int rotSpeed = 28;
 int speakerFreq = 1000;
 int sweep = 50;
-int volumeLevel = minimumVolume;
-int volumePattern = -1;
-int volumeStep = 0;
+int volumeLevel = LVmin;
+int volumePhase = -1;                           // -1 = off, 0 = low volume, 1 = high volume
 int state = 0;
 int whiteIndex = 0;
 unsigned long lastTime1 = 0;
 unsigned long lastTime2 = 0;
 unsigned long lastTime3 = 0;
-unsigned long volumePatternStart = 0;
+unsigned long volumePhaseStart = 0;
+unsigned long volumePhaseDuration = 0;
+unsigned long outputTime = 0;                   // Total ms counted in the running RMS
+float outputSquareSum = 0;                      // Sum of volumeLevel^2 * ms counted in the running RMS
 
 
 
@@ -88,14 +98,7 @@ void loop() {                           // Main loop with green light algorithm 
     flicker(random(minimumFlicker, maximumFlicker + 1));     // Flicker green for a random duration
     sysTime(random(minimumPause, maximumPause + 1));         // Pause green for a random duration
 
-    if (volumePattern == -1) {
-      volumePattern = random(0, 10);
-      volumeStep = 0;
-      volumePatternStart = millis();
-    }
-
     runWhite();
-    volume();
     speaker();
   }
 
@@ -105,7 +108,7 @@ void loop() {                           // Main loop with green light algorithm 
   }
   noTone(speakerPin);
   analogWrite(volumePin, 0);
-  volumePattern = -1;
+  volumePhase = -1;
   state = 0;
   greenStep = 0;
 
@@ -241,7 +244,7 @@ void flicker(int duration) {  // Flicker green pins for a certain duration at gr
 }
 
 // Noah Schatz - sound control routine
-void speaker() {                                     // Control the speaker frequency and sweep
+void speaker() {                                     // Control the speaker volume, frequency, and sweep
   if (digitalRead(triggerPin) == LOW) return;
 
   // Christina Walker - data logging during sound activation
@@ -257,120 +260,53 @@ void speaker() {                                     // Control the speaker freq
   Serial.print(", ");
   Serial.println(dB);
 
-  unsigned long time = millis();
-  int speakerFreq = map(volumeLevel, minimumVolume, maximumVolume,
-                        minimumFrequency, maximumFrequency);        // Map volume PWM to frequency.
+  volume();
 
-  if (time - lastTime3 >= sweep) {
+  unsigned long time = millis();
+
+  if (time - lastTime3 >= sweep) {                                     // Pick a new random frequency every sweep milliseconds
     lastTime3 = time;
+    int mappedFreq = map(volumeLevel, LVmin, HVmax, minimumFrequency, maximumFrequency);   // Map volume PWM to frequency
+    mappedFreq = constrain(mappedFreq, minimumFrequency, maximumFrequency);
+    int lowFreq = max(mappedFreq - frequencyOffset, minimumFrequency);    // Keep the random offset inside the frequency range
+    int highFreq = min(mappedFreq + frequencyOffset, maximumFrequency);
+    speakerFreq = random(lowFreq, highFreq + 1);
     tone(speakerPin, speakerFreq);
   }
 }
 
-void volume() {              // Cycle through volume patterns and adjust the volume PWM accordingly
-  int patternVolume = 0;
-  unsigned long patternDuration = 100;
+void volume() {              // Alternate random low and high volume phases, steering the running RMS toward RMSout
   unsigned long time = millis();
 
-  if (digitalRead(triggerPin) == LOW) {
-    noTone(speakerPin);
-    analogWrite(volumePin, 0);
-    volumePattern = -1;
-    return;
+  if (volumePhase == -1) {
+    outputSquareSum = 0;
+    outputTime = 0;
+  } else {
+    if (time - volumePhaseStart < volumePhaseDuration) return;           // if the current volume phase is still running
+
+    outputSquareSum += (float)volumeLevel * volumeLevel * volumePhaseDuration;   // Add the finished phase to the running RMS
+    outputTime += volumePhaseDuration;
   }
 
-  switch (volumePattern) {
-    case 0:
-      switch (volumeStep) {
-        case 0: patternVolume = 255; patternDuration = 120; break;
-        case 1: patternVolume = 40; patternDuration = 240; break;
-        case 2: patternVolume = 160; patternDuration = 100; break;
-      }
-      break;
+  if (volumePhase == 1) {                                                 // After a high phase, play a random low volume phase
+    volumePhase = 0;
+    volumeLevel = random(LVmin, LVmax + 1);
+    volumePhaseDuration = random(minimumLVDuration, maximumLVDuration + 1);
 
-    case 1:
-      switch (volumeStep) {
-        case 0: patternVolume = 30; patternDuration = 200; break;
-        case 1: patternVolume = 255; patternDuration = 80; break;
-        case 2: patternVolume = 20; patternDuration = 220; break;
-      }
-      break;
+  } else {                                                                // After a low phase (or a new trigger press), play a random high volume phase
+    volumePhase = 1;
+    float currentRMS = 0;
+    if (outputTime > 0) currentRMS = sqrt(outputSquareSum / outputTime);
 
-    case 2:
-      switch (volumeStep) {
-        case 0: patternVolume = 80; patternDuration = 150; break;
-        case 1: patternVolume = 180; patternDuration = 150; break;
-        case 2: patternVolume = 255; patternDuration = 150; break;
-      }
-      break;
-
-    case 3:
-      switch (volumeStep) {
-        case 0: patternVolume = 255; patternDuration = 60; break;
-        case 1: patternVolume = 0; patternDuration = 60; break;
-        case 2: patternVolume = 255; patternDuration = 60; break;
-      }
-      break;
-
-    case 4:
-      switch (volumeStep) {
-        case 0: patternVolume = 20; patternDuration = 300; break;
-        case 1: patternVolume = 120; patternDuration = 200; break;
-        case 2: patternVolume = 240; patternDuration = 100; break;
-      }
-      break;
-
-    case 5:
-      switch (volumeStep) {
-        case 0: patternVolume = 220; patternDuration = 100; break;
-        case 1: patternVolume = 60; patternDuration = 100; break;
-        case 2: patternVolume = 220; patternDuration = 100; break;
-      }
-      break;
-
-    case 6:
-      switch (volumeStep) {
-        case 0: patternVolume = 255; patternDuration = 200; break;
-        case 1: patternVolume = 100; patternDuration = 100; break;
-        case 2: patternVolume = 30; patternDuration = 300; break;
-      }
-      break;
-
-    case 7:
-      switch (volumeStep) {
-        case 0: patternVolume = 50; patternDuration = 80; break;
-        case 1: patternVolume = 200; patternDuration = 80; break;
-        case 2: patternVolume = 50; patternDuration = 80; break;
-      }
-      break;
-
-    case 8:
-      switch (volumeStep) {
-        case 0: patternVolume = 150; patternDuration = 250; break;
-        case 1: patternVolume = 0; patternDuration = 120; break;
-        case 2: patternVolume = 255; patternDuration = 250; break;
-      }
-      break;
-
-    case 9:
-      switch (volumeStep) {
-        case 0: patternVolume = 255; patternDuration = 50; break;
-        case 1: patternVolume = 150; patternDuration = 50; break;
-        case 2: patternVolume = 30; patternDuration = 250; break;
-      }
-      break;
-  }
-
-  volumeLevel = constrain(patternVolume, minimumVolume, maximumVolume);   // Ensure volume level stays within the defined range
-  analogWrite(volumePin, volumeLevel);
-
-  if (time - volumePatternStart >= patternDuration) {                     // Move to the next step in the volume pattern
-    volumePatternStart = time;
-    if (volumeStep == 2) {
-      volumePattern = random(0, 10);
-      volumeStep = 0;
-    } else {
-      volumeStep++;
+    int middleHV = (HVmin + HVmax) / 2;
+    if (currentRMS > RMSout) {                                            // Above RMSout: use the quieter half of the high range
+      volumeLevel = random(HVmin, middleHV + 1);
+    } else {                                                              // At or below RMSout: use the louder half of the high range
+      volumeLevel = random(middleHV, HVmax + 1);
     }
+    volumePhaseDuration = random(minimumHVDuration, maximumHVDuration + 1);
   }
+
+  volumePhaseStart = time;
+  analogWrite(volumePin, volumeLevel);
 }
