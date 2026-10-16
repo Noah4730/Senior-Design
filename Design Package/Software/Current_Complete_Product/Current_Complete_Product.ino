@@ -19,7 +19,7 @@ const int triggerPin = 34;
 const int soundSensorPin = 35;
 const int LVmin = 20;
 const int LVmax = 80;
-const int HVmin = 120;
+const int HVmin = 150;
 const int HVmax = 255;
 const int RMSout = 160;
 const int minimumLVDuration = 250;
@@ -29,32 +29,32 @@ const int maximumHVDuration = 1500;
 const int minimumFrequency = 3000;
 const int maximumFrequency = 10000;
 const int frequencyOffset = 3000;
-const int minimumFlicker = 100;
-const int maximumFlicker = 800;
-const int minimumPause = 20;
+const int minimumFlicker = 900;
+const int maximumFlicker = 1200;
+const int minimumPause = 100;
 const int maximumPause = 200;
 
 
-const int greenPatternSteps = 5;
-const int greenPatterns[3][greenPatternSteps][3] = {         // Green flicker patterns for modes 1-3
+const int whitePatternSteps = 5;
+const int whitePatterns[3][whitePatternSteps][3] = {         // White flicker patterns for modes 1-3
   {{1, 0, 0}, {3, 0, 0}, {5, 0, 0}, {2, 0, 0}, {4, 0, 0}},   // star, one pin at a time
   {{1, 2, 0}, {4, 3, 0}, {5, 1, 0}, {2, 3, 0}, {5, 4, 0}},   // two pins at a time
   {{1, 2, 3}, {3, 4, 5}, {5, 1, 2}, {2, 3, 4}, {4, 5, 1}}    // three pins at a time
 };
 
-int freqWhite = 35;
-int freqGreen = 40;
+int freqWhite = 40;
+int freqGreen = 35;
 int greenBrightness = 255;                      // Brightness for all green pins (0-255)
 int whiteBrightness = 255;                      // Brightness for all white pins (0-255)
-int flickerMode = 0;                            // 0 = all at once, 1 = star, 2 = two at a time, 3 = three at a time
-int greenStep = 0;                              // Current flash in the green flicker pattern
+int flickerMode = 1;                            // 0 = all at once, 1 = star, 2 = two at a time, 3 = three at a time
+int whiteStep = 0;                              // Current flash in the white flicker pattern
 int rotSpeed = 28;
 int speakerFreq = 1000;
 int sweep = 50;
 int volumeLevel = LVmin;
 int volumePhase = -1;                           // -1 = off, 0 = low volume, 1 = high volume
 int state = 0;
-int whiteIndex = 0;
+int greenIndex = 0;
 unsigned long lastTime1 = 0;
 unsigned long lastTime2 = 0;
 unsigned long lastTime3 = 0;
@@ -85,32 +85,32 @@ void setup() {                                                        // Initial
 
 
 void logEvent();
-void runWhite();
+void runGreen();
 void sysTime();
 void flicker();
 
 
 // Noah Schatz - main light and sound trigger loop
-void loop() {                           // Main loop with green light algorithm and major function calls
+void loop() {                           // Main loop with white light algorithm and major function calls
 
   while (digitalRead(triggerPin) == HIGH) {     // Trigger pin activates light routine
 
-    flicker(random(minimumFlicker, maximumFlicker + 1));     // Flicker green for a random duration
-    sysTime(random(minimumPause, maximumPause + 1));         // Pause green for a random duration
+    flicker(random(minimumFlicker, maximumFlicker + 1));     // Flicker white for a random duration
+    sysTime(random(minimumPause, maximumPause + 1));         // Pause white for a random duration
 
-    runWhite();
+    runGreen();
     speaker();
   }
 
-  setGreen(0);                                                          // Turn off all lights when trigger pin is LOW
-  for (int i = 0; i < numWhitePins; i++) {
-    analogWrite(whitePins[i], 0);
+  setWhite(0);                                                          // Turn off all lights when trigger pin is LOW
+  for (int i = 0; i < numGreenPins; i++) {
+    analogWrite(greenPins[i], 0);
   }
   noTone(speakerPin);
   analogWrite(volumePin, 0);
   volumePhase = -1;
   state = 0;
-  greenStep = 0;
+  whiteStep = 0;
 
   // Christina Walker - safety/data logging readout
   int sensorValue = analogRead(soundSensorPin); //
@@ -141,37 +141,37 @@ void logEvent(const char* type, int pin, const char* stateStr) {      // Log eve
   Serial.println(stateStr);
 }
 
-// Noah Schatz - white LED light routine
-void runWhite() {                                     // Run white light routine
+// Noah Schatz - green LED light routine
+void runGreen() {                                     // Run green light routine
   unsigned long now = millis();
 
   if(digitalRead(triggerPin) == LOW) return;                  // If trigger pin is LOW, exit function
 
-  if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the white lights every rotSpeed milliseconds
+  if (now - lastTime1 >= (unsigned long)rotSpeed) {             // Rotate the green lights every rotSpeed milliseconds
     lastTime1 = now;
-    analogWrite(whitePins[whiteIndex], 0);                      // Turn off the current pin before moving to the next one
-    // logEvent("WHITE", whitePins[whiteIndex], "OFF");
+    analogWrite(greenPins[greenIndex], 0);                      // Turn off the current pin before moving to the next one
+    // logEvent("GREEN", greenPins[greenIndex], "OFF");
 
-    whiteIndex++;
-    if (whiteIndex >= numWhitePins) whiteIndex = 0;
+    greenIndex++;
+    if (greenIndex >= numGreenPins) greenIndex = 0;
 
-    if (state == 1) {                                           // If white lights are on, turn on only the next pin
-      analogWrite(whitePins[whiteIndex], whiteBrightness);
-      // logEvent("WHITE", whitePins[whiteIndex], "ON");
+    if (state == 1) {                                           // If green lights are on, turn on only the next pin
+      analogWrite(greenPins[greenIndex], greenBrightness);
+      // logEvent("GREEN", greenPins[greenIndex], "ON");
     }
   }
 
-  if (now - lastTime2 >= (unsigned long)freqWhite) {       // Toggle the active white light on and off every freqWhite milliseconds
+  if (now - lastTime2 >= (unsigned long)freqGreen) {       // Toggle the active green light on and off every freqGreen milliseconds
     lastTime2 = now;
 
     if (state == 0) {
-      analogWrite(whitePins[whiteIndex], whiteBrightness);
-      // logEvent("WHITE", whitePins[whiteIndex], "ON");
+      analogWrite(greenPins[greenIndex], greenBrightness);
+      // logEvent("GREEN", greenPins[greenIndex], "ON");
       state = 1;
 
     } else {
-      analogWrite(whitePins[whiteIndex], 0);
-      // logEvent("WHITE", whitePins[whiteIndex], "OFF");
+      analogWrite(greenPins[greenIndex], 0);
+      // logEvent("GREEN", greenPins[greenIndex], "OFF");
       state = 0;
     }
   }
@@ -184,60 +184,60 @@ void sysTime(unsigned long ms) {          // Delay function based on system time
   unsigned long t = millis();
   while (millis() - t < ms) {
     if(digitalRead(triggerPin) == LOW) return;
-    runWhite();
+    runGreen();
     speaker();
   }
 }
 
-// Noah Schatz - set every green LED pin to the same brightness
-void setGreen(int brightness) {
-  for (int i = 0; i < numGreenPins; i++) {
-    analogWrite(greenPins[i], brightness);
+// Noah Schatz - set every white LED pin to the same brightness
+void setWhite(int brightness) {
+  for (int i = 0; i < numWhitePins; i++) {
+    analogWrite(whitePins[i], brightness);
   }
 }
 
-// Noah Schatz - turn on the green pins for the current flash of the selected flicker mode
-void showGreenStep() {
+// Noah Schatz - turn on the white pins for the current flash of the selected flicker mode
+void showWhiteStep() {
   if (flickerMode < 1 || flickerMode > 3) {               // Mode 0 (or invalid): all pins at once
-    setGreen(greenBrightness);
+    setWhite(whiteBrightness);
     return;
   }
 
   for (int j = 0; j < 3; j++) {
-    int pinNumber = greenPatterns[flickerMode - 1][greenStep][j];
-    if (pinNumber > 0) analogWrite(greenPins[pinNumber - 1], greenBrightness);
+    int pinNumber = whitePatterns[flickerMode - 1][whiteStep][j];
+    if (pinNumber > 0) analogWrite(whitePins[pinNumber - 1], whiteBrightness);
   }
 
-  greenStep++;                                             // Advance to the next flash in the pattern
-  if (greenStep >= greenPatternSteps) greenStep = 0;
+  whiteStep++;                                             // Advance to the next flash in the pattern
+  if (whiteStep >= whitePatternSteps) whiteStep = 0;
 }
 
-// Noah Schatz - green LED strobe/flicker routine
-void flicker(int duration) {  // Flicker green pins for a certain duration at greenBrightness using flickerMode
+// Noah Schatz - white LED strobe/flicker routine
+void flicker(int duration) {  // Flicker white pins for a certain duration at whiteBrightness using flickerMode
 
   if(digitalRead(triggerPin) == LOW) return;
 
-  for (int i = 0; i < (duration / 70); i++) {
+  for (int i = 0; i < (duration / (2 * freqWhite)); i++) {     // Whole on/off flashes that fit in duration
 
     if(digitalRead(triggerPin) == LOW) return;
 
-    showGreenStep();
-    // logEvent("GREEN", greenPins[0], "ON");
+    showWhiteStep();
+    // logEvent("WHITE", whitePins[0], "ON");
 
     unsigned long t = millis();
-    while (millis() - t < (unsigned long)freqGreen) {
-      if(digitalRead(triggerPin) == LOW) { setGreen(0); return; }
-      runWhite();
+    while (millis() - t < (unsigned long)freqWhite) {
+      if(digitalRead(triggerPin) == LOW) { setWhite(0); return; }
+      runGreen();
       speaker();
     }
 
-    setGreen(0);
-    // logEvent("GREEN", greenPins[0], "OFF");
+    setWhite(0);
+    // logEvent("WHITE", whitePins[0], "OFF");
 
     t = millis();
-    while (millis() - t < (unsigned long)freqGreen) {
+    while (millis() - t < (unsigned long)freqWhite) {
       if(digitalRead(triggerPin) == LOW) return;
-      runWhite();
+      runGreen();
       speaker();
     }
   }
