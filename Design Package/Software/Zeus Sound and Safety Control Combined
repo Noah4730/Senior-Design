@@ -1,0 +1,405 @@
+#include <Arduino.h>
+
+/*
+  Zeus sound system- combined sketch
+  Speaker code: Noah Schatz
+  Sound safety controller:Christina Walker
+  Both programs run insame loop. The sound safety controller lowers
+  safetyGain when the sound is too loud and the speaker code scales its volume by it.
+*/
+
+//shared between both parts
+const int triggerPin= 32;    // digital input- HIGH means sound system is running (used by both parts). ESP32 GPIO number- placeholder until the PCB pins are final
+
+// safetyGain: 255= full output, 0= silent. The safety controller lowers it, the speaker code reads it.
+int safetyGain= 255;
+
+// function declarations (the Arduino IDE adds these itself, other build tools need them)
+void speakerSetup();
+void speakerLoop();
+void speaker();
+void volume();
+void safetySetup();
+void safetyLoop();
+void logSafetyEvent(float dB, const char* event);
+void reduceSpeakerOutput();
+void restoreSpeakerOutput();
+
+void setup() {
+  // trigger input, shared by both parts. Pulled down so it reads LOW (not floating) when nothing is pressed
+  pinMode(triggerPin, INPUT_PULLDOWN);
+
+  speakerSetup();
+  safetySetup();
+}
+
+void loop() {
+  speakerLoop();   // makes the sound (scaled by safetyGain)
+  safetyLoop();    // checks the mic and lowers safetyGain if needed
+}
+
+// SPEAKER CODE (Noah Schatz)
+const int speakerPin = 13;   // ESP32 GPIO number (placeholder)
+const int volumePin = 25;    // ESP32 GPIO number (placeholder). Not 12: GPIO12 is a boot pin on the ESP32 and can stop it from starting
+const int minimumVolume = 100;
+const int maximumVolume = 255;
+const int minimumFrequency = 3000;
+const int maximumFrequency = 10000;
+
+int sweep = 50;
+int volumeLevel = minimumVolume;
+int volumePattern = -1;
+int volumeStep = 0;
+unsigned long lastTime3 = 0;
+unsigned long volumePatternStart = 0;
+
+// safetyGain (shared, defined at the top) is lowered by the safety controller: 255 = full volume, 0 = silent.
+int outputVolume = minimumVolume;   // pattern volume after the safety gain is applied (what is actually played)
+
+void speakerSetup() {                                                  // Configure pins and start the speaker controls
+  pinMode(speakerPin, OUTPUT);
+  pinMode(volumePin, OUTPUT);
+
+  analogWrite(volumePin, volumeLevel);
+  randomSeed(analogRead(39));   // floating ADC pin used as a random seed (GPIO39 on the ESP32)
+}
+
+void speakerLoop() {                                                   //run random volume patterns while the trigger is active
+  if (digitalRead(triggerPin) == HIGH) {
+    if (volumePattern == -1) {
+      volumePattern = random(0, 10);
+      volumeStep = 0;
+      volumePatternStart = millis();
+    }
+
+    volume();
+    speaker();
+  } else {
+    noTone(speakerPin);
+    analogWrite(volumePin, 0);
+    volumePattern = -1;
+  }
+}
+
+void speaker() {
+  if (digitalRead(triggerPin) == LOW) return;
+
+  unsigned long time = millis();
+
+  int speakerFreq = map(constrain(outputVolume, minimumVolume, maximumVolume), minimumVolume, maximumVolume,
+                        minimumFrequency, maximumFrequency);               // Map volume PWM to frequency (kept inside the range so a safety reduction can't push the frequency below the minimum).
+
+  if (time - lastTime3 >= sweep) {
+    lastTime3 = time;
+    if (outputVolume <= 0) noTone(speakerPin);                              // Safety controller has silenced the output
+    else tone(speakerPin, speakerFreq);
+  }
+}
+
+void volume() {                                                            // Cycle through volume patterns and adjust the volume PWM accordingly
+  int patternVolume = 0;
+  unsigned long patternDuration = 100;
+  unsigned long time = millis();
+
+  switch (volumePattern) {
+    case 0:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 120; break;
+        case 1: patternVolume = 40; patternDuration = 240; break;
+        case 2: patternVolume = 160; patternDuration = 100; break;
+      }
+      break;
+
+    case 1:
+      switch (volumeStep) {
+        case 0: patternVolume = 30; patternDuration = 200; break;
+        case 1: patternVolume = 255; patternDuration = 80; break;
+        case 2: patternVolume = 20; patternDuration = 220; break;
+      }
+      break;
+
+    case 2:
+      switch (volumeStep) {
+        case 0: patternVolume = 80; patternDuration = 150; break;
+        case 1: patternVolume = 180; patternDuration = 150; break;
+        case 2: patternVolume = 255; patternDuration = 150; break;
+      }
+      break;
+
+    case 3:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 60; break;
+        case 1: patternVolume = 0; patternDuration = 60; break;
+        case 2: patternVolume = 255; patternDuration = 60; break;
+      }
+      break;
+
+    case 4:
+      switch (volumeStep) {
+        case 0: patternVolume = 20; patternDuration = 300; break;
+        case 1: patternVolume = 120; patternDuration = 200; break;
+        case 2: patternVolume = 240; patternDuration = 100; break;
+      }
+      break;
+
+    case 5:
+      switch (volumeStep) {
+        case 0: patternVolume = 220; patternDuration = 100; break;
+        case 1: patternVolume = 60; patternDuration = 100; break;
+        case 2: patternVolume = 220; patternDuration = 100; break;
+      }
+      break;
+
+    case 6:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 200; break;
+        case 1: patternVolume = 100; patternDuration = 100; break;
+        case 2: patternVolume = 30; patternDuration = 300; break;
+      }
+      break;
+
+    case 7:
+      switch (volumeStep) {
+        case 0: patternVolume = 50; patternDuration = 80; break;
+        case 1: patternVolume = 200; patternDuration = 80; break;
+        case 2: patternVolume = 50; patternDuration = 80; break;
+      }
+      break;
+
+    case 8:
+      switch (volumeStep) {
+        case 0: patternVolume = 150; patternDuration = 250; break;
+        case 1: patternVolume = 0; patternDuration = 120; break;
+        case 2: patternVolume = 255; patternDuration = 250; break;
+      }
+      break;
+
+    case 9:
+      switch (volumeStep) {
+        case 0: patternVolume = 255; patternDuration = 50; break;
+        case 1: patternVolume = 150; patternDuration = 50; break;
+        case 2: patternVolume = 30; patternDuration = 250; break;
+      }
+      break;
+  }
+
+  volumeLevel = constrain(patternVolume, minimumVolume, maximumVolume);   // Ensure volume level stays within the defined range
+  outputVolume = ((long)volumeLevel * safetyGain) / 255;                  // Apply the safety controller's gain (255 = unchanged, 0 = silent). Done after the minimum above so safety can go below it.
+  analogWrite(volumePin, outputVolume);
+
+  if (time - volumePatternStart >= patternDuration) {                     // Move to the next step in the volume pattern
+    volumePatternStart = time;
+    if (volumeStep == 2) {
+      volumePattern = random(0, 10);
+      volumeStep = 0;
+    } else {
+      volumeStep++;
+    }
+  }
+}
+
+//SOUND SAFETY CONTROLLER
+const int micPin= 34;       // analog input pin the microphone is wired to
+
+//safety limit placeholders
+// if measured sound goes above this level, speaker output should be reduced
+const float soundLimitDb= 130.0;   // immediate threshold (placeholder)
+
+//exposure time is tracked when the sound is at/above this dB level
+const float exposureLimitDb= 110.0;  //lower threshold where exposure time is recorded (placeholder)
+
+//maximum accumulated exposure time at/above exposureLimitDb
+//currently placeholder and will be replaced with approved value
+const unsigned long maxExposureTime= 30000UL;  //30 seconds- max cumulative time allowed at/above exposureLimitDb before shutdown (placeholder)
+
+//timing
+
+unsigned long lastSampleTime= 0;  //timestamp (ms) of the last microphone reading. used for the 50ms sample timer
+
+//how often microphone is checked
+const unsigned long sampleInterval= 50;  //sampling period (ms). Also the time slice added to exposureTime each loud sample
+
+unsigned long lastExposureTime= 0;  //timestamp used to calculate actual elapsed exposure time
+
+//counts consecutive readings at/above the exposure threshold
+int highReadingCount= 0;
+const int requiredHighReadings= 3;  //number of consecutive high readings required before exposure is accumulated
+
+//tracks whether the immediate sound-limit event has already been logged
+bool soundLimitEventLogged= false;
+
+//total exposure time
+unsigned long exposureTime= 0;  //running total (ms) of time spent at/above exposureLimitDb since the system was last activated
+
+//system state
+bool safetyShutdown= false; //latches TRUE once maxExposureTime is exceeded. Stays true (keeps output reduced) until trigger goes LOW
+
+//speaker volume control
+// the speaker code (Noah's file) makes the sound, so it sets the volume itself:
+// it multiplies its pattern volume by (safetyGain / 255) every time it updates the volume.
+// safetyGain is shared by both parts and is defined once at the top of this file.
+const int fullGain= 255;  // safetyGain setting for full speaker output
+const int safetyGainStep= 5;    // how much safetyGain drops each time reduceSpeakerOutput() is called
+
+void safetySetup() {
+
+  Serial.begin(9600);   //serial open aka dB readings/ warnings
+
+  pinMode(micPin, INPUT);   //microphone input pin
+  analogReadResolution(10);   // ESP32 reads 0-4095 by default. This makes it 0-1023 so the dB math below still works
+}
+
+//main
+
+void safetyLoop() {
+  unsigned long currentTime= millis();   //get current elapsed time once per loop
+
+  //new measurement every 50 ms
+  //non-blocking timer: takes new reading once sampleInterval (50ms)
+  //has elapsed since last one, instead of sampling as fast as
+  // the loop can go (which would flood serial and make exposureTime
+  // inaccurate/unpredictable).
+  if (currentTime-lastSampleTime >= sampleInterval){
+
+    lastSampleTime= currentTime;  //reset sample timer
+
+    //check whether sound system is active or not
+    // monitor safety limits while sound system is
+    // actually running (trigger HIGH). If off, skip to
+    // else branch below to reset state for next time
+    if (digitalRead(triggerPin)== HIGH){
+
+      //calculate the actual time since the previous safety reading
+      unsigned long elapsedTime= currentTime-lastExposureTime;
+      lastExposureTime= currentTime;
+
+      //read microphone
+      int sensorValue= analogRead(micPin);  // raw analog mic reading, 0-1023
+
+      float dB= 30.0+(sensorValue/1023.0)*104.0;
+
+      //display reading
+      Serial.print("Raw: ");
+      Serial.print(sensorValue);
+
+      Serial.print("   dB: ");
+      Serial.println(dB);
+
+      //sound too loud?
+      // immediate..00000000000000000000 if initial reading is already at/ above
+      // high sound threshold, immediately reduce output
+      if (dB >= soundLimitDb){
+
+        //log the safety event only once when the sound first reaches the limit
+        if (!soundLimitEventLogged){
+          logSafetyEvent(dB, "Sound Limit Exceeded");
+          soundLimitEventLogged= true;
+        }
+
+        //Serial.println("Warning:Sound level too high.");
+
+        reduceSpeakerOutput();
+      }
+      else {
+        //allow a new sound-limit event to be logged if the level drops below the limit
+        soundLimitEventLogged= false;
+      }
+
+      //safety check-exposure time
+      // Cumulative check: if this reading is at/above the (lower)
+      // exposure threshold, count consecutive high readings before
+      // adding the actual elapsed time to the running exposureTime total.
+      if (dB >= exposureLimitDb){
+
+        highReadingCount++;
+
+        //only accumulate exposure after the sound has remained
+        //at/above the exposure threshold for the required number of readings
+        if (highReadingCount >= requiredHighReadings){
+
+          exposureTime+= elapsedTime;
+
+          Serial.print("Exposure time: ");
+          Serial.print(exposureTime);
+          Serial.println(" ms");
+
+          // check if allowed exposure been reached
+          // when accumulated time at/above exposureLimitDb crosses
+          // allowed maximum, permanently reduce output and latch
+          // safetyShutdown so it stays reduced even if the level later dips
+          // back down below the thresholds.
+
+          if (exposureTime>= maxExposureTime){
+            Serial.println("Warning: Maximum exposure reached.");
+            logSafetyEvent(dB, "Maximum Exposure Reached");
+            reduceSpeakerOutput();
+            safetyShutdown= true;
+          }
+        }
+      }
+      else {
+        //reset consecutive high-reading count when sound drops below exposure threshold
+        highReadingCount= 0;
+      }
+
+      //if safety shutdown happened, keep output reduced until system is restarted
+      // reset according to the final design
+      // even on occasions where dB has dropped
+      // back below both thresholds, continues giving "reduce output"
+      // command every sample as long as safetyShutdown is latched as true
+
+      if (safetyShutdown){
+        reduceSpeakerOutput();
+      }
+    }
+    //sound system no longer active
+    else {
+      //reset exposure for next activation
+      // trigger goes LOW (turned off). clears accumulated
+      // exposure time and unlatches safetyShutdown. Next time
+      // system is triggered HIGH again it starts over fresh.
+
+      exposureTime= 0;
+      safetyShutdown= false;
+      highReadingCount= 0;
+      soundLimitEventLogged= false;
+      lastExposureTime= currentTime;
+      restoreSpeakerOutput();   //put the speaker output back to full for next activation
+    }
+  }
+}
+
+// safety event log
+void logSafetyEvent(float dB, const char* event) {
+  Serial.print("Safety Event - Time: ");
+  Serial.print(millis());
+  Serial.print(" ms, dB: ");
+  Serial.print(dB);
+  Serial.print(", ACTION: ");
+  Serial.println(event);
+}
+
+// reduce speaker output
+
+void reduceSpeakerOutput() {
+  /*
+    lowers the speaker output by stepping safetyGain down.
+    The speaker code reads safetyGain and scales its volume
+    by it, so a lower level means a quieter speaker.
+    Each call lowers safetyGain by safetyGainStep (never below 0), so
+    repeated calls fade the output down until it is silent.
+    The level stays reduced until restoreSpeakerOutput() is called.
+  */
+  if (safetyGain > 0) {
+    safetyGain-= safetyGainStep;
+    if (safetyGain < 0) safetyGain= 0;
+  }
+  Serial.println("Reduce Speaker Output");
+}
+
+// restore speaker output
+// called when the trigger goes LOW, puts the amp back to full output
+
+void restoreSpeakerOutput() {
+  safetyGain= fullGain;   //back to full output
+}
