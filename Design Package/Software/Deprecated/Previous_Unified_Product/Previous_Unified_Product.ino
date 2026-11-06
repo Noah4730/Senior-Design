@@ -1,40 +1,3 @@
-/*
-  Test bench for Current_Complete_Product.ino (test case SLV-03)
-*/
-
-// ---------------- Test bench setup ----------------
-
-const unsigned long simTriggerStart = 2000;
-
-int graph = 1;                                  // 1 = speaker RMS, 2 = average dB, 3 = hearing sensitivity, 4 = pupil
-const unsigned long plotIntervals[] = {200, 200, 50, 100};   // ms between points for graphs 1-4
-
-const float LVminDb = 40.0;                     // Low volume min/max db
-const float LVmaxDb = 80.0;
-const float maxSpeakerDb = 130.0;
-const float exposureLimitDb = 100.0;            // Exposure time is tracked above this level
-const float speakerOffDb = 30.0;                // dB plotted while the speaker is off
-
-const unsigned long hearingResetDelay = 100;    // ms of high volume before hearing sensitivity resets to 0
-
-const float ledLux = 100000.0;                   // Lux at the eye while the white LEDs are on
-const unsigned long pupilDelay = 200;           // ms of white light before the pupil starts constricting
-const float pupilBaseline = 3.21;
-
-
-int benchDigitalRead(int pin);
-void benchAnalogWrite(int pin, int value);
-void benchTone(int pin, int frequency);
-void benchNoTone(int pin);
-
-#define setup productSetup
-#define loop productLoop
-#define digitalRead benchDigitalRead
-#define analogWrite benchAnalogWrite
-#define tone benchTone
-#define noTone benchNoTone
-
-// ==================================== Current_Complete_Product.ino ==========================================
 #include <SPI.h>
 #include <SD.h>
 
@@ -70,6 +33,10 @@ const int minimumFlicker = 900;
 const int maximumFlicker = 1200;
 const int minimumPause = 100;
 const int maximumPause = 200;
+const float soundLimitDb = 130.0;
+const float soundReleaseDb = 105.0;
+const int requiredQuietReadings = 20;
+const unsigned long micWindow = 50;
 
 
 const int whitePatternSteps = 5;
@@ -81,8 +48,8 @@ const int whitePatterns[3][whitePatternSteps][3] = {         // White flicker pa
 
 int freqWhite = 40;
 int freqGreen = 35;
-int greenBrightness = 255;
-int whiteBrightness = 255;
+int greenBrightness = 255;                      // Brightness for all green pins (0-255)
+int whiteBrightness = 255;                      // Brightness for all white pins (0-255)
 int flickerMode = 1;                            // 0 = all at once, 1 = star, 2 = two at a time, 3 = three at a time
 int whiteStep = 0;                              // Current flash in the white flicker pattern
 int rotSpeed = 28;
@@ -99,6 +66,14 @@ unsigned long volumePhaseStart = 0;
 unsigned long volumePhaseDuration = 0;
 unsigned long outputTime = 0;                   // Total ms counted in the running RMS
 float outputSquareSum = 0;                      // Sum of volumeLevel^2 * ms counted in the running RMS
+bool soundLimited = false;                      // true = high volume held to the quieter half of the high range
+int quietReadings = 0;                          // Consecutive high volume readings at or below soundReleaseDb
+float micReadingDb = 0;
+unsigned long lastMicWindow = 0;
+int micMin = 4095;
+int micMax = 0;
+long micSum = 0;
+int micCount = 0;                               // Number of mic samples in the current window
 
 
 
@@ -117,6 +92,7 @@ void setup() {                                                        // Initial
   pinMode(soundSensorPin, INPUT);
 
   analogWrite(volumePin, volumeLevel);
+  Serial.begin(115200);
 }
 
 
@@ -145,8 +121,23 @@ void loop() {                           // Main loop with white light algorithm 
   noTone(speakerPin);
   analogWrite(volumePin, 0);
   volumePhase = -1;
+  soundLimited = false;                         // Each trigger pull starts at full output
   state = 0;
   whiteStep = 0;
+
+  // Christina Walker - safety/data logging readout
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+                                                //x104: scales up to a range of 0 to 104 (134-30)
+                                                //+30: shifts the whole thing up so the minimum is 30 instead of 0
+
+  // Christina Walker - serial logging output for safety monitoring
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
+
 }
 
 // Christina Walker - safety and logging helper
@@ -269,6 +260,20 @@ void flicker(int duration) {  // Flicker white pins for a certain duration at wh
 void speaker() {                                     // Control the speaker volume, frequency, and sweep
   if (digitalRead(triggerPin) == LOW) return;
 
+  // Christina Walker - data logging during sound activation
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+                                                //x104: scales up to a range of 0 to 104 (134-30)
+                                                //+30: shifts the whole thing up so the minimum is 30 instead of 0
+
+  // Christina Walker - serial output for sound-trigger logging
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
+
+  soundLimiter(sensorValue);                    // Noah Schatz - sound limit on the mic reading
   volume();
 
   unsigned long time = millis();
@@ -308,7 +313,7 @@ void volume() {              // Alternate random low and high volume phases, ste
     if (outputTime > 0) currentRMS = sqrt(outputSquareSum / outputTime);
 
     int middleHV = (HVmin + HVmax) / 2;
-    if (currentRMS > RMSout) {                                            // Above RMSout: use the quieter half of the high range
+    if (currentRMS > RMSout || soundLimited) {                            // Above RMSout or sound limited: use the quieter half of the high range
       volumeLevel = random(HVmin, middleHV + 1);
     } else {                                                              // At or below RMSout: use the louder half of the high range
       volumeLevel = random(middleHV, HVmax + 1);
@@ -319,206 +324,37 @@ void volume() {              // Alternate random low and high volume phases, ste
   volumePhaseStart = time;
   analogWrite(volumePin, volumeLevel);
 }
-// ======================================================= END ===================================================
 
-#undef setup
-#undef loop
-#undef digitalRead
-#undef analogWrite
-#undef tone
-#undef noTone
+// Noah Schatz - grouping mic samples
+void soundLimiter(int raw) {
+  micMin = min(micMin, raw);
+  micMax = max(micMax, raw);
+  micSum += raw;
+  micCount++;
+  if (millis() - lastMicWindow < micWindow) return;
 
-// ----------------------------------------------------Test Bench------------------------------------------------------------
+  lastMicWindow = millis();
+  float level = micSum / (float)micCount;
+  micReadingDb = 30 + (level / 4095.0) * 104;            // Same conversion as Christina's mic log
+  checkSoundLimit(micReadingDb);
 
-unsigned long lastPlot = 0;
-
-bool hearingRested = true;
-bool hearingHigh = false;
-unsigned long hearingHighStart = 0;
-float hearingHoldValue = 100;                   // Sensitivity held for the first hearingResetDelay ms of a high interval
-unsigned long recoveryStart = 0;
-
-int whiteLevels[numWhitePins];                  // Last value written to each white LED pin
-bool whiteLit = false;
-unsigned long whiteLitSince = 0;
-unsigned long whiteDarkSince = 0;
-bool lightOn = false;
-unsigned long lightOnSince = 0;
-
-bool pupilConstricting = false;
-unsigned long pupilResponseStart = 0;
-float pupilStartDiameter = pupilBaseline;
-const float pupilConstricted = pupilBaseline - 0.63 * log10(ledLux / 400.0);   // Fully constricted diameter in mm
-
-
-void setup() {                                  // Start the plotter's serial port, then the product's own setup
-  Serial.begin(115200);
-  productSetup();
+  micMin = 4095;
+  micMax = 0;
+  micSum = 0;
+  micCount = 0;
 }
 
-void loop() {                                   // Run the product
-  productLoop();
-  benchUpdate();
-}
+// Noah Schatz - sound limit
+void checkSoundLimit(float dB) {
+  if (volumePhase != 1) return;                           // Low phases say nothing about high phase loudness
 
-
-int benchDigitalRead(int pin) {                 // Every trigger check in the product also updates the test bench
-  benchUpdate();
-  if (pin != triggerPin) return digitalRead(pin);
-  return (millis() < simTriggerStart) ? LOW : HIGH;                  // Simulated trigger
-}
-
-void benchAnalogWrite(int pin, int value) {     // Record white LED writes for the pupil model
-  bool lit = false;
-  for (int i = 0; i < numWhitePins; i++) {
-    if (pin == whitePins[i]) whiteLevels[i] = value;
-    if (whiteLevels[i] > 0) lit = true;
+  if (dB >= soundLimitDb) {                               // if over limit reduce
+    soundLimited = true;
+    quietReadings = 0;
+    volumePhaseDuration = millis() - volumePhaseStart;    // volume() ends this high phase on its next call
+  } else if (dB > soundReleaseDb) {                       // if sound is more than the release Db keep the current state
+    quietReadings = 0;
+  } else if (++quietReadings >= requiredQuietReadings) {  // if quiet for long enough reset
+    soundLimited = false;
   }
-  if (lit && !whiteLit) whiteLitSince = millis();
-  if (!lit && whiteLit) whiteDarkSince = millis();
-  whiteLit = lit;
-}
-
-void benchTone(int, int) {}                     // The speaker stays silent
-void benchNoTone(int) {}
-
-
-void benchUpdate() {                            // Track the models and print a point every plotIntervals[graph - 1] ms
-  unsigned long now = millis();
-  trackHearing(now);
-  trackLight(now);
-
-  if (now - lastPlot < plotIntervals[graph - 1]) return;
-  lastPlot = now;
-  readGraphChoice();
-  plot(now);
-}
-
-void readGraphChoice() {                        // Send 1-4 from the Serial Plotter to switch graphs
-  while (Serial.available() > 0) {
-    char c = Serial.read();
-    if (c >= '1' && c <= '4') graph = c - '0';
-  }
-}
-
-
-float runningRms(unsigned long now) {           // The product's running RMS
-  if (volumePhase == -1) return 0;
-
-  unsigned long played = min(now - volumePhaseStart, volumePhaseDuration);
-  float squareSum = outputSquareSum + (float)volumeLevel * volumeLevel * played;
-  unsigned long totalTime = outputTime + played;
-  if (totalTime == 0) return volumeLevel;
-  return sqrt(squareSum / totalTime);
-}
-
-float volumeToDb(float level) {                 // Speaker dB for a volume PWM level
-  if (level <= 0) return speakerOffDb;
-  if (level <= LVmax) return LVminDb + (level - LVmin) * (LVmaxDb - LVminDb) / (LVmax - LVmin);
-  return LVmaxDb + (level - LVmax) * (maxSpeakerDb - LVmaxDb) / (255.0 - LVmax);
-}
-
-
-float hearingRecovery(float t) {                // Auditory Adaptation Recovery Function
-  return 100 - 60.5 * exp(-t / 0.095) - 39.5 * exp(-t / 0.655);
-}
-
-float hearingSensitivity(unsigned long now) {   // Hearing sensitivity at time now
-  if (hearingHigh) {
-    if (now - hearingHighStart < hearingResetDelay) return hearingHoldValue;
-    return 0;                                                                   // High volume has reset sensitivity to 0
-  }
-  if (hearingRested) return 100;
-  return hearingRecovery((now - recoveryStart) / 1000.0);                       // Recovering over low volume
-}
-
-void trackHearing(unsigned long now) {          // Follow the product's switches between high and low volume
-  bool high = (volumePhase == 1);
-  if (high == hearingHigh) return;
-
-  unsigned long changeTime = (volumePhase == -1) ? now : volumePhaseStart;
-  if (high) {                                                       // when going from low to high, hold the current sensitivity
-    hearingHoldValue = hearingSensitivity(now);
-    hearingHighStart = changeTime;
-  } else if (changeTime - hearingHighStart < hearingResetDelay) {   // If th high ended before the reset resume the recovery where it paused
-    recoveryStart += changeTime - hearingHighStart;
-  } else {                                                          // High reset sensitivity to 0
-    hearingRested = false;
-    recoveryStart = changeTime;
-  }
-  hearingHigh = high;
-}
-
-
-void trackLight(unsigned long now) {                                // Pupil response
-  if (whiteLit && !lightOn) {                                       // First white flash after a pause
-    lightOn = true;
-    lightOnSince = whiteLitSince;
-  } else if (!whiteLit && lightOn && now - whiteDarkSince > (unsigned long)freqWhite + 5) {   // Dark longer than freqWhit + 5 then the white light has paused
-    lightOn = false;
-    if (pupilConstricting) startPupilResponse(false, max(whiteDarkSince + freqWhite, pupilResponseStart));   // The pause began when the last flash's off time ended
-  }
-
-  if (lightOn && !pupilConstricting && now - lightOnSince >= pupilDelay) {
-    startPupilResponse(true, lightOnSince + pupilDelay);
-  }
-}
-
-float pupilConstriction(float t) {              // Constriction progress 0 to 1
-  return 1 - (1 + 7.7 * t) * exp(-7.7 * t);
-}
-
-float pupilRecovery(float t) {                  // Recovery progress 0 to 1
-  return 1 - 0.65 * exp(-0.83 * t) - 0.35 * exp(-0.14 * t);
-}
-
-float pupilDiameter(unsigned long now) {        // each constriction and dilating phase picks up from the current diameter
-  float t = (now - pupilResponseStart) / 1000.0;
-  if (pupilConstricting) return pupilStartDiameter + (pupilConstricted - pupilStartDiameter) * pupilConstriction(t);
-  return pupilStartDiameter + (pupilBaseline - pupilStartDiameter) * pupilRecovery(t);
-}
-
-void startPupilResponse(bool constricting, unsigned long time) {
-  pupilStartDiameter = pupilDiameter(time);
-  pupilResponseStart = time;
-  pupilConstricting = constricting;
-}
-
-
-void plot(unsigned long now) {                  // Print one point of the selected graph
-  int volumeNow = (volumePhase == -1) ? 0 : volumeLevel;    // Volume PWM playing right now
-  float rms = runningRms(now);
-
-  switch (graph) {
-    case 1:                                                  // RMS output value for the speaker
-      printValue("Volume_PWM", volumeNow, false);
-      printValue("Running_RMS", rms, false);
-      printValue("RMS_Target", RMSout, true);
-      break;
-
-    case 2:                                                  // Average dB coming out of the speaker and the safety limits
-      printValue("Average_dB", volumeToDb(rms), false);
-      printValue("Speaker_dB", volumeToDb(volumeNow), false);
-      printValue("Safety_Limit_dB", maxSpeakerDb, false);
-      printValue("Exposure_Limit_dB", exposureLimitDb, true);
-      break;
-
-    case 3:                                                  // Hearing sensitivity over the high and low volume intervals
-      printValue("Hearing_Sensitivity", hearingSensitivity(now), false);
-      printValue("High_Volume", (volumePhase == 1) ? 100 : 0, true);
-      break;
-
-    case 4:                                                  // Pupil diameter
-      printValue("Pupil_mm", pupilDiameter(now), false);
-      printValue("Light_Target_mm", lightOn ? pupilConstricted : pupilBaseline, true);
-      break;
-  }
-}
-
-void printValue(const char* label, float value, bool last) {
-  Serial.print(label);
-  Serial.print(":");
-  Serial.print(value, 3);
-  if (last) Serial.println();
-  else Serial.print(",");
 }
