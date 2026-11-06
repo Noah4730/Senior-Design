@@ -1,0 +1,74 @@
+//battery indicator for Zeus
+//
+// (placeholders):
+//    dividerRatio: battery volts divided by the volts at the sense pin.
+//    lowBatteryVoltage: the battery voltage that counts as 20% left (pack is
+//       5 lithium-ion cells, about 21 V full, about 18.5 V nominal). Left at 0.0
+//       for now, which keeps warning off. Take it from the cells' discharge curve.
+
+const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin)
+const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
+
+// scaling from the divider
+// the pin must never see more than about 3 V. With a full pack at 21 V the ratio has to be at least 7
+const float dividerRatio=8.0;   //placeholder: battery volts / volts at the pin. MEASURE this for the real PCB
+
+// battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
+const float lowBatteryVoltage=0.0;   //placeholder threshold- real "20% battery" voltage TBD, from the cell datasheet
+
+// the reading is checked once a second, and the warning only starts after several low
+// readings in a row, so one dip (for example when the speaker draws power) does not trigger it
+unsigned long lastCheck=0;                  //timestamp (ms) of the last battery check
+const unsigned long checkInterval=1000;     //time (ms) between battery checks
+int lowReadingCount=0;                      //how many checks in a row were below the threshold
+const int requiredLowReadings=5;            //low readings in a row needed before warning
+
+unsigned long lastWarning=0;          //timestamp (ms) of the last time we sounded the buzzer
+const unsigned long warningInterval=5000;   //minimum gap (ms) between buzzer warnings= 5 seconds
+
+void setup(){
+  pinMode(batteryPin, INPUT);    //set up the battery voltage sense pin as an input
+  pinMode(buzzerPin, OUTPUT);    //set up the buzzer pin as an output (driven via tone())
+
+  Serial.begin(9600);            
+}
+
+void loop(){
+
+  if (millis()-lastCheck >= checkInterval){   //time for the next battery check?
+    lastCheck=millis();
+
+    //8 quick readings to smooth out noise. analogReadMilliVolts gives the
+    // voltage at the pin in millivolts (the ESP32 corrects for its own ADC error).
+    float pinMillivolts=0.0;
+    for (int i=0; i<8; i++){
+      pinMillivolts+=analogReadMilliVolts(batteryPin);
+    }
+    pinMillivolts/=8.0;
+
+    //voltage at pin, scaled back up to the real battery voltage
+    float batteryVoltage=(pinMillivolts/1000.0)*dividerRatio;
+
+    Serial.print("Battery: ");
+    Serial.print(batteryVoltage);
+    Serial.println(" V");
+
+    if (batteryVoltage<lowBatteryVoltage){   //is battery below the low battery threshold?
+      lowReadingCount++;
+    }
+    else {
+      lowReadingCount=0;                     //battery looks fine, start count over
+    }
+  }
+
+  if (lowReadingCount>=requiredLowReadings){
+
+    //short warning every few seconds
+    //non-blocking "cooldown" timer pattern.
+    if (millis()-lastWarning >= warningInterval){
+      tone(buzzerPin, 2000, 200);   //play a 2000Hz tone on the buzzer for 200ms
+      lastWarning=millis();          //reset the cooldown timer
+      Serial.println("Low battery"); //log the warning 
+    }
+  }
+}
