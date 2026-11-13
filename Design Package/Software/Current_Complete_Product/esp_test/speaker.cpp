@@ -8,7 +8,9 @@ void speaker() {                                     // Control the speaker volu
   if (digitalRead(triggerPin) == LOW) return;
 
   int sensorValue = analogRead(soundSensorPin);  // Christina's mic read (her serial prints are left out so the plotter stays readable)
+  float dB = 30 + (sensorValue / 4095.0) * 104;
 
+  safetyLoop(dB);                               // Christina Walker - sound safety
   soundLimiter(sensorValue);                    // Noah Schatz - sound limit hysteresis on the mic reading above
   volume();
   if (volumePhase != 1) return;                                        // Speaker stays off between high phases
@@ -22,7 +24,9 @@ void speaker() {                                     // Control the speaker volu
     int lowFreq = max(mappedFreq - frequencyOffset, minimumFrequency);    // Keep the random offset inside the frequency range
     int highFreq = min(mappedFreq + frequencyOffset, maximumFrequency);
     speakerFreq = random(lowFreq, highFreq + 1);
-    tone(speakerPin, speakerFreq);
+    // tone(speakerPin, speakerFreq);
+    if (safetyGain <= 0) noTone(speakerPin);
+    else tone(speakerPin, speakerFreq);
   }
 }
 
@@ -33,7 +37,11 @@ void volume() {              // Alternate random off and high volume phases, ste
     outputSquareSum = 0;
     outputTime = 0;
   } else {
-    if (time - volumePhaseStart < volumePhaseDuration) return;           // if the current volume phase is still running
+    // if (time - volumePhaseStart < volumePhaseDuration) return;           // if the current volume phase is still running
+    if (time - volumePhaseStart < volumePhaseDuration) {                 // if the current volume phase is still running
+      analogWrite(volumePin, ((long)volumeLevel * safetyGain) / 255);
+      return;
+    }
 
     outputSquareSum += (float)volumeLevel * volumeLevel * volumePhaseDuration;   // Add the finished phase to the running RMS
     outputTime += volumePhaseDuration;
@@ -60,5 +68,6 @@ void volume() {              // Alternate random off and high volume phases, ste
   }
 
   volumePhaseStart = time;
-  analogWrite(volumePin, volumeLevel);
+  // analogWrite(volumePin, volumeLevel);
+  analogWrite(volumePin, ((long)volumeLevel * safetyGain) / 255);
 }
