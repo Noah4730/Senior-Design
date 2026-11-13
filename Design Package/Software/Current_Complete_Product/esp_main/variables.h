@@ -12,14 +12,20 @@
 // const int chipSelect = 10;
 // File logFile;
 
-const int greenPins[] = {16, 17, 18, 19, 21};
-const int whitePins[] = {22, 23, 25, 26, 27};
+// const int greenPins[] = {16, 17, 18, 19, 21};
+const int greenPins[] = {16, 17, 18, 4, 13};
+// const int whitePins[] = {22, 23, 25, 26, 27};
+const int whitePins[] = {32, 32, 32, 32, 32};
 const int numGreenPins = 5;
 const int numWhitePins = 5;
-const int speakerPin = 32;
-const int volumePin = 33;
-const int triggerPin = 34;
-const int soundSensorPin = 35;
+// const int speakerPin = 32;
+const int speakerPin = 19;
+// const int volumePin = 33;
+const int volumePin = 21;
+// const int triggerPin = 34;
+const int triggerPin = 39;
+// const int soundSensorPin = 35;
+const int soundSensorPin = 36;
 const int LVmin = 20;
 const int LVmax = 80;
 const int HVmin = 150;
@@ -78,21 +84,59 @@ inline int micMax = 0;
 inline long micSum = 0;
 inline int micCount = 0;                               // Number of mic samples in the current window
 
+// Christina Walker - sound safety controller (safety_CW.cpp)
+inline int safetyGain= 255;
+// const int micPin= 34;       // analog input pin the microphone is wired to
+const int micPin= 36;
+
+//safety limit placeholders
+// if measured sound goes above this level, speaker output should be reduced
+// const float soundLimitDb= 130.0;   // immediate threshold (placeholder)
+
+//exposure time is tracked when the sound is at/above this dB level
+const float exposureLimitDb= 110.0;  //lower threshold where exposure time is recorded (placeholder)
+
+//maximum accumulated exposure time at/above exposureLimitDb
+//currently placeholder and will be replaced with approved value
+const unsigned long maxExposureTime= 30000UL;  //30 seconds- max cumulative time allowed at/above exposureLimitDb before shutdown (placeholder)
+
+//timing
+
+inline unsigned long lastSampleTime= 0;  //timestamp (ms) of the last microphone reading. used for the 50ms sample timer
+
+//how often microphone is checked
+const unsigned long sampleInterval= 50;  //sampling period (ms). Also the time slice added to exposureTime each loud sample
+
+inline unsigned long lastExposureTime= 0;  //timestamp used to calculate actual elapsed exposure time
+
+//counts consecutive readings at/above the exposure threshold
+inline int highReadingCount= 0;
+const int requiredHighReadings= 3;  //number of consecutive high readings required before exposure is accumulated
+
+//tracks whether the immediate sound-limit event has already been logged
+inline bool soundLimitEventLogged= false;
+
+//total exposure time
+inline unsigned long exposureTime= 0;  //running total (ms) of time spent at/above exposureLimitDb since the system was last activated
+
+//system state
+inline bool safetyShutdown= false; //latches TRUE once maxExposureTime is exceeded. Stays true (keeps output reduced) until trigger goes LOW
+
+//speaker volume control
+const int fullGain= 255;
+const int safetyGainStep= 5;
+
 // Christina Walker - battery indicator (battery_CW.cpp)
-const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin) (added: GPIO35 is free on the PCB, needs a wire from the divider. Pin unchanged)
+const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin)
 // const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
-const int buzzerPin=22;  //(added: GPIO22 is free on the PCB, needs a wire. GPIO33 drives an LED channel on the PCB)
+const int buzzerPin=22;
 
 // scaling from the divider
-// const float dividerRatio=6.0;   //placeholder: battery volts / volts at the pin. MEASURE this for the real PCB
-const float dividerRatio=(100000.0+12000.0)/12000.0;   //added: (R1+R2)/R2 with R1=100k (battery side) and R2=12k (GND side) = 9.33. At 21V the pin sees 2.25V. Add a 0.1uF capacitor from the pin to GND
+const float dividerRatio=(100000.0+12000.0)/12000.0;
 
-// battery voltage range
-// const float fullBatteryVoltage=18.5;    //placeholder: replace with the exact full voltage (it is 18.x V)
-const float fullBatteryVoltage=21.0;    //added: full voltage of the 5 cell pack (18.x V is nominal)
-const float emptyBatteryVoltage=0.0;    //placeholder: voltage when empty / BMS cutoff, TBD
-// warn at 20% of the way up from empty to full
-const float lowBatteryVoltage=emptyBatteryVoltage+0.20*(fullBatteryVoltage-emptyBatteryVoltage);
+// battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
+// const float lowBatteryVoltage=17.5;
+const float lowBatteryVoltage=16.5;
 
 // the reading is checked once a second, and the warning only starts after several low
 // readings in a row, so one dip (for example when the speaker draws power) does not trigger it
