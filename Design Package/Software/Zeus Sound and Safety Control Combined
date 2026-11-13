@@ -9,7 +9,8 @@
 */
 
 //shared between both parts
-const int triggerPin= 32;    // digital input- HIGH means sound system is running (used by both parts). ESP32 GPIO number- placeholder until the PCB pins are final
+// const int triggerPin= 32;    // digital input- HIGH means sound system is running (used by both parts). ESP32 GPIO number- placeholder until the PCB pins are final
+const int triggerPin= 39;
 
 // safetyGain: 255= full output, 0= silent. The safety controller lowers it, the speaker code reads it.
 int safetyGain= 255;
@@ -24,10 +25,13 @@ void safetyLoop();
 void logSafetyEvent(float dB, const char* event);
 void reduceSpeakerOutput();
 void restoreSpeakerOutput();
+void soundLimiter(int raw);
+void checkSoundLimit(float dB);
 
 void setup() {
   // trigger input, shared by both parts. Pulled down so it reads LOW (not floating) when nothing is pressed
-  pinMode(triggerPin, INPUT_PULLDOWN);
+  // pinMode(triggerPin, INPUT_PULLDOWN);
+  pinMode(triggerPin, INPUT);
 
   speakerSetup();
   safetySetup();
@@ -39,48 +43,89 @@ void loop() {
 }
 
 // SPEAKER CODE (Noah Schatz)
-const int speakerPin = 13;   // ESP32 GPIO number (placeholder)
-const int volumePin = 25;    // ESP32 GPIO number (placeholder). Not 12: GPIO12 is a boot pin on the ESP32 and can stop it from starting
-const int minimumVolume = 100;
-const int maximumVolume = 255;
+// const int speakerPin = 13;   // ESP32 GPIO number (placeholder)
+const int speakerPin = 19;
+// const int volumePin = 25;    // ESP32 GPIO number (placeholder). Not 12: GPIO12 is a boot pin on the ESP32 and can stop it from starting
+const int volumePin = 21;
+// const int minimumVolume = 100;
+// const int maximumVolume = 255;
 const int minimumFrequency = 3000;
 const int maximumFrequency = 10000;
 
 int sweep = 50;
-int volumeLevel = minimumVolume;
-int volumePattern = -1;
-int volumeStep = 0;
+// int volumeLevel = minimumVolume;
+// int volumePattern = -1;
+// int volumeStep = 0;
 unsigned long lastTime3 = 0;
-unsigned long volumePatternStart = 0;
+// unsigned long volumePatternStart = 0;
 
 // safetyGain (shared, defined at the top) is lowered by the safety controller: 255 = full volume, 0 = silent.
-int outputVolume = minimumVolume;   // pattern volume after the safety gain is applied (what is actually played)
+// int outputVolume = minimumVolume;   // pattern volume after the safety gain is applied (what is actually played)
+
+// Noah Schatz - sound settings and variables
+// const int soundSensorPin = 35;
+const int soundSensorPin = 36;
+const int LVmin = 20;
+const int LVmax = 80;
+const int HVmin = 150;
+const int HVmax = 255;
+const int RMSout = 160;
+const int minimumOffDuration = 250;                   // Speaker off interval between high volume phases
+const int maximumOffDuration = 750;
+const int minimumHVDuration = 500;
+const int maximumHVDuration = 1500;
+const int frequencyOffset = 3000;
+const float soundLimitDb = 130.0;
+const float soundReleaseDb = 105.0;
+const int requiredQuietReadings = 20;
+const unsigned long micWindow = 50;
+
+int speakerFreq = 1000;
+int volumeLevel = 0;
+int volumePhase = -1;                           // -1 = trigger off, 0 = speaker off interval, 1 = high volume
+unsigned long volumePhaseStart = 0;
+unsigned long volumePhaseDuration = 0;
+unsigned long outputTime = 0;                   // Total ms counted in the running RMS
+float outputSquareSum = 0;                      // Sum of volumeLevel^2 * ms counted in the running RMS
+bool soundLimited = false;                      // true = high volume held to the quieter half of the high range
+int quietReadings = 0;                          // Consecutive high volume readings at or below soundReleaseDb
+float micReadingDb = 0;
+unsigned long lastMicWindow = 0;
+int micMin = 4095;
+int micMax = 0;
+long micSum = 0;
+int micCount = 0;                               // Number of mic samples in the current window
 
 void speakerSetup() {                                                  // Configure pins and start the speaker controls
   pinMode(speakerPin, OUTPUT);
   pinMode(volumePin, OUTPUT);
 
   analogWrite(volumePin, volumeLevel);
-  randomSeed(analogRead(39));   // floating ADC pin used as a random seed (GPIO39 on the ESP32)
+  // randomSeed(analogRead(39));   // floating ADC pin used as a random seed (GPIO39 on the ESP32)
+  randomSeed(analogRead(35));   // floating ADC pin used as a random seed (GPIO35 on the ESP32)
 }
 
 void speakerLoop() {                                                   //run random volume patterns while the trigger is active
   if (digitalRead(triggerPin) == HIGH) {
-    if (volumePattern == -1) {
-      volumePattern = random(0, 10);
-      volumeStep = 0;
-      volumePatternStart = millis();
-    }
-
-    volume();
+    // if (volumePattern == -1) {
+    //   volumePattern = random(0, 10);
+    //   volumeStep = 0;
+    //   volumePatternStart = millis();
+    // }
+    //
+    // volume();
+    // speaker();
     speaker();
   } else {
     noTone(speakerPin);
     analogWrite(volumePin, 0);
-    volumePattern = -1;
+    // volumePattern = -1;
+    volumePhase = -1;
+    soundLimited = false;
   }
 }
 
+/*
 void speaker() {
   if (digitalRead(triggerPin) == LOW) return;
 
@@ -197,13 +242,131 @@ void volume() {                                                            // Cy
     }
   }
 }
+*/
+
+// Speaker functions
+
+// Noah Schatz - sound control routine
+void speaker() {                                     // Control the speaker volume, frequency, and sweep
+  if (digitalRead(triggerPin) == LOW) return;
+
+  // Christina Walker - data logging during sound activation
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+                                                //x104: scales up to a range of 0 to 104 (134-30)
+                                                //+30: shifts the whole thing up so the minimum is 30 instead of 0
+
+  // Christina Walker - serial output for sound-trigger logging
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
+
+  soundLimiter(sensorValue);                    // Noah Schatz - sound limit on the mic reading
+  volume();
+  if (volumePhase != 1) return;                                        // Speaker stays off between high phases
+
+  unsigned long time = millis();
+
+  if (time - lastTime3 >= sweep) {                                     // Pick a new random frequency every sweep milliseconds
+    lastTime3 = time;
+    int mappedFreq = map(volumeLevel, LVmin, HVmax, minimumFrequency, maximumFrequency);   // Map volume PWM to frequency
+    mappedFreq = constrain(mappedFreq, minimumFrequency, maximumFrequency);
+    int lowFreq = max(mappedFreq - frequencyOffset, minimumFrequency);    // Keep the random offset inside the frequency range
+    int highFreq = min(mappedFreq + frequencyOffset, maximumFrequency);
+    speakerFreq = random(lowFreq, highFreq + 1);
+    // tone(speakerPin, speakerFreq);
+    if (safetyGain <= 0) noTone(speakerPin);      // Safety controller has silenced the output
+    else tone(speakerPin, speakerFreq);
+  }
+}
+
+void volume() {              // Alternate random off and high volume phases, steering the running RMS toward RMSout
+  unsigned long time = millis();
+
+  if (volumePhase == -1) {
+    outputSquareSum = 0;
+    outputTime = 0;
+  } else {
+    // if (time - volumePhaseStart < volumePhaseDuration) return;           // if the current volume phase is still running
+    if (time - volumePhaseStart < volumePhaseDuration) {                 // if the current volume phase is still running
+      analogWrite(volumePin, ((long)volumeLevel * safetyGain) / 255);    // keep applying the safety gain during the phase
+      return;
+    }
+
+    outputSquareSum += (float)volumeLevel * volumeLevel * volumePhaseDuration;   // Add the finished phase to the running RMS
+    outputTime += volumePhaseDuration;
+  }
+
+  if (volumePhase == 1) {                                                 // After a high phase, turn the speaker off for a random interval
+    volumePhase = 0;
+    volumeLevel = 0;
+    volumePhaseDuration = random(minimumOffDuration, maximumOffDuration + 1);
+    noTone(speakerPin);
+
+  } else {                                                                // After an off phase play a random high volume phase
+    volumePhase = 1;
+    float currentRMS = 0;
+    if (outputTime > 0) currentRMS = sqrt(outputSquareSum / outputTime);
+
+    int middleHV = (HVmin + HVmax) / 2;
+    if (currentRMS > RMSout || soundLimited) {                            // Above RMSout or sound limited: use the quieter half of the high range
+      volumeLevel = random(HVmin, middleHV + 1);
+    } else {                                                              // At or below RMSout: use the louder half of the high range
+      volumeLevel = random(middleHV, HVmax + 1);
+    }
+    volumePhaseDuration = random(minimumHVDuration, maximumHVDuration + 1);
+  }
+
+  volumePhaseStart = time;
+  // analogWrite(volumePin, volumeLevel);
+  analogWrite(volumePin, ((long)volumeLevel * safetyGain) / 255);   // Apply the safety controller's gain (255 = unchanged, 0 = silent)
+}
+
+// Hysteresis functions
+
+// Noah Schatz - grouping mic samples
+void soundLimiter(int raw) {
+  micMin = min(micMin, raw);
+  micMax = max(micMax, raw);
+  micSum += raw;
+  micCount++;
+  if (millis() - lastMicWindow < micWindow) return;
+
+  lastMicWindow = millis();
+  float level = micSum / (float)micCount;
+  micReadingDb = 30 + (level / 4095.0) * 104;            // Same conversion as Christina's mic log
+  checkSoundLimit(micReadingDb);
+
+  micMin = 4095;
+  micMax = 0;
+  micSum = 0;
+  micCount = 0;
+}
+
+// Noah Schatz - sound limit
+void checkSoundLimit(float dB) {
+  if (volumePhase != 1) return;                           // Off phases say nothing about high phase loudness
+
+  if (dB >= soundLimitDb) {                               // if over limit reduce
+    soundLimited = true;
+    quietReadings = 0;
+    volumePhaseDuration = millis() - volumePhaseStart;    // volume() ends this high phase on its next call
+  } else if (dB > soundReleaseDb) {                       // if sound is more than the release Db keep the current state
+    quietReadings = 0;
+  } else if (++quietReadings >= requiredQuietReadings) {  // if quiet for long enough reset
+    soundLimited = false;
+  }
+}
 
 //SOUND SAFETY CONTROLLER
-const int micPin= 34;       // analog input pin the microphone is wired to
+// const int micPin= 34;       // analog input pin the microphone is wired to
+const int micPin= 36;
 
 //safety limit placeholders
 // if measured sound goes above this level, speaker output should be reduced
-const float soundLimitDb= 130.0;   // immediate threshold (placeholder)
+// const float soundLimitDb= 130.0;   // immediate threshold (placeholder)
 
 //exposure time is tracked when the sound is at/above this dB level
 const float exposureLimitDb= 110.0;  //lower threshold where exposure time is recorded (placeholder)
@@ -246,7 +409,7 @@ void safetySetup() {
   Serial.begin(9600);   //serial open aka dB readings/ warnings
 
   pinMode(micPin, INPUT);   //microphone input pin
-  analogReadResolution(10);   // ESP32 reads 0-4095 by default. This makes it 0-1023 so the dB math below still works
+  // analogReadResolution(10);   // ESP32 reads 0-4095 by default. This makes it 0-1023 so the dB math below still works
 }
 
 //main
@@ -276,7 +439,8 @@ void safetyLoop() {
       //read microphone
       int sensorValue= analogRead(micPin);  // raw analog mic reading, 0-1023
 
-      float dB= 30.0+(sensorValue/1023.0)*104.0;
+      // float dB= 30.0+(sensorValue/1023.0)*104.0;
+      float dB= 30.0+(sensorValue/4095.0)*104.0;
 
       //display reading
       Serial.print("Raw: ");
