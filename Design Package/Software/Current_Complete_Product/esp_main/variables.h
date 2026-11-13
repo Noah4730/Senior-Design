@@ -77,3 +77,29 @@ inline int micMin = 4095;
 inline int micMax = 0;
 inline long micSum = 0;
 inline int micCount = 0;                               // Number of mic samples in the current window
+
+// Christina Walker - battery indicator (battery_CW.cpp)
+const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin) (added: GPIO35 is free on the PCB, needs a wire from the divider. Pin unchanged)
+// const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
+const int buzzerPin=22;  //(added: GPIO22 is free on the PCB, needs a wire. GPIO33 drives an LED channel on the PCB)
+
+// scaling from the divider
+// const float dividerRatio=6.0;   //placeholder: battery volts / volts at the pin. MEASURE this for the real PCB
+const float dividerRatio=(100000.0+12000.0)/12000.0;   //added: (R1+R2)/R2 with R1=100k (battery side) and R2=12k (GND side) = 9.33. At 21V the pin sees 2.25V. Add a 0.1uF capacitor from the pin to GND
+
+// battery voltage range
+// const float fullBatteryVoltage=18.5;    //placeholder: replace with the exact full voltage (it is 18.x V)
+const float fullBatteryVoltage=21.0;    //added: full voltage of the 5 cell pack (18.x V is nominal)
+const float emptyBatteryVoltage=0.0;    //placeholder: voltage when empty / BMS cutoff, TBD
+// warn at 20% of the way up from empty to full
+const float lowBatteryVoltage=emptyBatteryVoltage+0.20*(fullBatteryVoltage-emptyBatteryVoltage);
+
+// the reading is checked once a second, and the warning only starts after several low
+// readings in a row, so one dip (for example when the speaker draws power) does not trigger it
+inline unsigned long lastCheck=0;                  //timestamp (ms) of the last battery check
+const unsigned long checkInterval=1000;     //time (ms) between battery checks
+inline int lowReadingCount=0;                      //how many checks in a row were below the threshold
+const int requiredLowReadings=5;            //low readings in a row needed before warning
+
+inline unsigned long lastWarning=0;          //timestamp (ms) of the last time we sounded the buzzer
+const unsigned long warningInterval=5000;   //minimum gap (ms) between buzzer warnings= 5 seconds
