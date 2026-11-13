@@ -24,7 +24,7 @@ void soundLimiter(int raw) {
 
 // Noah Schatz - sound limit
 void checkSoundLimit(float dB) {
-  if (volumePhase != 1) return;                           // Low phases say nothing about high phase loudness
+  if (volumePhase != 1) return;                           // Off phases say nothing about high phase loudness
 
   if (dB >= soundLimitDb) {                               // if over limit reduce
     soundLimited = true;

@@ -21,6 +21,7 @@ void speaker() {                                     // Control the speaker volu
 
   soundLimiter(sensorValue);                    // Noah Schatz - sound limit on the mic reading
   volume();
+  if (volumePhase != 1) return;                                        // Speaker stays off between high phases
 
   unsigned long time = millis();
 
@@ -35,7 +36,7 @@ void speaker() {                                     // Control the speaker volu
   }
 }
 
-void volume() {              // Alternate random low and high volume phases, steering the running RMS toward RMSout
+void volume() {              // Alternate random off and high volume phases, steering the running RMS toward RMSout
   unsigned long time = millis();
 
   if (volumePhase == -1) {
@@ -48,12 +49,13 @@ void volume() {              // Alternate random low and high volume phases, ste
     outputTime += volumePhaseDuration;
   }
 
-  if (volumePhase == 1) {                                                 // After a high phase, play a random low volume phase
+  if (volumePhase == 1) {                                                 // After a high phase, turn the speaker off for a random interval
     volumePhase = 0;
-    volumeLevel = random(LVmin, LVmax + 1);
-    volumePhaseDuration = random(minimumLVDuration, maximumLVDuration + 1);
+    volumeLevel = 0;
+    volumePhaseDuration = random(minimumOffDuration, maximumOffDuration + 1);
+    noTone(speakerPin);
 
-  } else {                                                                // After a low phase (or a new trigger press), play a random high volume phase
+  } else {                                                                // After an off phase play a random high volume phase
     volumePhase = 1;
     float currentRMS = 0;
     if (outputTime > 0) currentRMS = sqrt(outputSquareSum / outputTime);

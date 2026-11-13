@@ -55,8 +55,8 @@ const int LVmax = 80;
 const int HVmin = 150;
 const int HVmax = 255;
 const int RMSout = 160;
-const int minimumLVDuration = 250;
-const int maximumLVDuration = 750;
+const int minimumOffDuration = 250;                   // Speaker off interval between high volume phases
+const int maximumOffDuration = 750;
 const int minimumHVDuration = 500;
 const int maximumHVDuration = 1500;
 const int minimumFrequency = 3000;
@@ -88,8 +88,8 @@ inline int whiteStep = 0;                              // Current flash in the w
 inline int rotSpeed = 28;
 inline int speakerFreq = 1000;
 inline int sweep = 50;
-inline int volumeLevel = LVmin;
-inline int volumePhase = -1;                           // -1 = off, 0 = low volume, 1 = high volume
+inline int volumeLevel = 0;
+inline int volumePhase = -1;                           // -1 = trigger off, 0 = speaker off interval, 1 = high volume
 inline int state = 0;
 inline int greenIndex = 0;
 inline unsigned long lastTime1 = 0;

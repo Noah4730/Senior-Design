@@ -48,7 +48,7 @@ void plot(unsigned long now) {                  // Print one point of the select
       printValue("Exposure_Limit_dB", exposureLimitDb, true);
       break;
 
-    case 3:                                                  // Hearing sensitivity over the high and low volume intervals
+    case 3:                                                  // Hearing sensitivity over the high volume and speaker off intervals
       printValue("Hearing_Sensitivity", hearingSensitivity(now), false);
       printValue("High_Volume", (volumePhase == 1) ? 100 : 0, true);
       break;
