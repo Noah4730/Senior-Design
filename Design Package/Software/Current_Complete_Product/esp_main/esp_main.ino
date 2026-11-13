@@ -16,7 +16,7 @@ void setup() {                                                        // Initial
   pinMode(volumePin, OUTPUT);
   pinMode(triggerPin, INPUT);
   pinMode(soundSensorPin, INPUT);
-  batterySetup();                               // Christina Walker - battery indicator setup (added)
+  batterySetup();
 
   analogWrite(volumePin, volumeLevel);
   Serial.begin(115200);
@@ -33,7 +33,7 @@ void loop() {                           // Main loop with white light algorithm 
 
     runGreen();
     speaker();
-    batteryLoop();                              // Christina Walker - battery check while the device is running (added)
+    batteryLoop();
   }
 
   setWhite(0);                                                          // Turn off all lights when trigger pin is LOW
@@ -48,12 +48,10 @@ void loop() {                           // Main loop with white light algorithm 
   whiteStep = 0;
 
   // Christina Walker - safety/data logging readout
-  // int sensorValue = analogRead(soundSensorPin); //
-  int sensorValue = measureMicRmsMv();          // (added) mic signal strength (RMS, mV) over the last ~20 ms
-  // float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
-  float dB = rmsToDb(sensorValue);              // (added) dB from the calibration point in variables.h
 
   // Christina Walker - serial logging output for safety monitoring
   Serial.print(millis());
@@ -62,6 +60,6 @@ void loop() {                           // Main loop with white light algorithm 
   Serial.print(", ");
   Serial.println(dB);
 
-  batteryLoop();                                // Christina Walker - battery check while the device is idle (added)
-  safetyLoop(dB);                               // Christina Walker - trigger is LOW here, so this resets the safety state and restores full output
+  batteryLoop();
+  safetyLoop(dB);
 }
