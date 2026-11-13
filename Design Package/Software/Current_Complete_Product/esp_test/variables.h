@@ -162,7 +162,7 @@ const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only
 const int buzzerPin=22;
 
 // scaling from the divider
-const float dividerRatio=(100000.0+12000.0)/12000.0;
+const float dividerRatio=(100000.0+10000.0)/10000.0;
 
 // battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
 // const float lowBatteryVoltage=17.5;
