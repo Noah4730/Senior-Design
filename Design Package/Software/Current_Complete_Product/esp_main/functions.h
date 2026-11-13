@@ -26,3 +26,13 @@ void volume();
 // hysteresis_NJS.cpp - sound limit functions
 void soundLimiter(int raw);
 void checkSoundLimit(float dB);
+
+// safety_CW.cpp - sound safety controller
+void safetyLoop(float dB);
+void logSafetyEvent(float dB, const char* event);
+void reduceSpeakerOutput();
+void restoreSpeakerOutput();
+
+// battery_CW.cpp - battery indicator (low battery chirp)
+void batterySetup();    // the setup() of the battery indicator
+void batteryLoop();     // the loop() of the battery indicator, call it every pass
