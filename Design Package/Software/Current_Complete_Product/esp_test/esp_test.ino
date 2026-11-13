@@ -23,6 +23,7 @@ void setup() {                                                        // Initial
   pinMode(volumePin, OUTPUT);
   pinMode(triggerPin, INPUT);
   pinMode(soundSensorPin, INPUT);
+  batterySetup();
 
   analogWrite(volumePin, volumeLevel);
 }
@@ -38,6 +39,7 @@ void loop() {                           // Main loop with white light algorithm 
 
     runGreen();
     speaker();
+    batteryLoop();
   }
 
   setWhite(0);                                                          // Turn off all lights when trigger pin is LOW
@@ -50,6 +52,22 @@ void loop() {                           // Main loop with white light algorithm 
   soundLimited = false;                         // Each trigger pull starts at full output
   state = 0;
   whiteStep = 0;
+
+  // Christina Walker - safety/data logging readout
+  int sensorValue = analogRead(soundSensorPin); //
+  float dB = 30 + (sensorValue / 4095.0) * 104; //sensorValue/4095.0 (ESP32 12-bit ADC): divides the raw reading by the max possible value, giving number between 0 and 1 (percentage)
+                                                //x104: scales up to a range of 0 to 104 (134-30)
+                                                //+30: shifts the whole thing up so the minimum is 30 instead of 0
+
+  // Christina Walker - serial logging output for safety monitoring
+  Serial.print(millis());
+  Serial.print(", ");
+  Serial.print(sensorValue);
+  Serial.print(", ");
+  Serial.println(dB);
+
+  batteryLoop();
+  safetyLoop(dB);
 }
 // ======================================================= END ===================================================
 
