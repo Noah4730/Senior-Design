@@ -6,7 +6,7 @@
 // ---------------- Test bench setup ----------------
 
 // The test bench runs alongside the real hardware: every pin write still reaches the LEDs and speaker,
-// and the models (RMS, dB, hearing, pupil) follow those same writes. Plotting only runs while the trigger is held.
+// and the models (RMS, dB, hearing, pupil) follow those same writes. The plot runs all the time (flat while the trigger is released).
 const bool simulateTrigger = false;             // true = ignore the trigger pin and use simTriggerStart/simTriggerEnd
 const bool simulateMic = false;                 // true = ignore the mic pin and use the simulated room below
 

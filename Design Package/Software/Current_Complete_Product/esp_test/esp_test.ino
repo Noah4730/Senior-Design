@@ -59,12 +59,12 @@ void loop() {                           // Main loop with white light algorithm 
                                                 //x104: scales up to a range of 0 to 104 (134-30)
                                                 //+30: shifts the whole thing up so the minimum is 30 instead of 0
 
-  // Christina Walker - serial logging output for safety monitoring
-  Serial.print(millis());
-  Serial.print(", ");
-  Serial.print(sensorValue);
-  Serial.print(", ");
-  Serial.println(dB);
+  // Christina Walker - serial logging output for safety monitoring (left out of the test bench so the plotter stays readable)
+  // Serial.print(millis());
+  // Serial.print(", ");
+  // Serial.print(sensorValue);
+  // Serial.print(", ");
+  // Serial.println(dB);
 
   batteryLoop();
   safetyLoop(dB);

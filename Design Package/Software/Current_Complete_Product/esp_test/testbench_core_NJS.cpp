@@ -16,15 +16,14 @@ int benchDigitalRead(int pin) {                 // Every trigger check in the pr
 }
 
 
-void benchUpdate() {                            // Track the models and, while the trigger is held, print a point every plotIntervals[graph - 1] ms
+void benchUpdate() {                            // Track the models and print a point every plotIntervals[graph - 1] ms
   unsigned long now = millis();
   trackHearing(now);                            // Models keep tracking after release so they pick up correctly on the next pull
   trackLight(now);
 
-  if (benchTrigger() == LOW) return;            // Only plot while the trigger and hardware are running
+  readGraphChoice();                            // Graph choice works at any time
   if (now - lastPlot < plotIntervals[graph - 1]) return;
   lastPlot = now;
-  readGraphChoice();
   plot(now);
 }
 
