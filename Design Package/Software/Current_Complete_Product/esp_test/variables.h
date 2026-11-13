@@ -44,8 +44,8 @@ const float pupilBaseline = 3.21;
 
 // const int greenPins[] = {16, 17, 18, 19, 21};
 const int greenPins[] = {16, 17, 18, 4, 13};
-// const int whitePins[] = {22, 23, 25, 26, 27};
-const int whitePins[] = {32, 32, 32, 32, 32};
+const int whitePins[] = {22, 23, 25, 26, 27};
+//const int whitePins[] = {32, 32, 32, 32, 32};
 const int numGreenPins = 5;
 const int numWhitePins = 5;
 // const int speakerPin = 32;
