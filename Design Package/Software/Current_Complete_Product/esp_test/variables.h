@@ -48,9 +48,11 @@ const float pupilBaseline = 3.21;
 // File logFile;
 
 // const int greenPins[] = {16, 17, 18, 19, 21};
+// const int greenPins[] = {16, 17, 18, 4, 13};
 // Arduino uses GPIO numbers, not module pin numbers. Module pins are noted on each line.
 const int greenPins[] = {32, 23, 22, 21, 19};     // module pins 8, 37, 36, 33, 31
 // const int whitePins[] = {22, 23, 25, 26, 27};
+// const int whitePins[] = {32, 32, 32, 32, 32};
 const int whitePins[] = {18, 17, 16, 14, 13};     // module pins 30, 28, 27, 13, 16
 const int numGreenPins = 5;
 const int numWhitePins = 5;
@@ -168,7 +170,7 @@ const int batteryPin=36; //battery voltage input: GPIO36 / SENSOR_VP, module pin
 const int buzzerPin=33;  //low battery buzzer: GPIO33, module pin 9 - placeholder, confirm wiring
 
 // scaling from the divider
-const float dividerRatio=(100000.0+12000.0)/12000.0;
+const float dividerRatio=(100000.0+10000.0)/10000.0;
 
 // battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
 // const float lowBatteryVoltage=17.5;
