@@ -3,7 +3,9 @@
 #include "variables.h"
 #include "functions.h"
 
-void benchAnalogWrite(int pin, int value) {     // Record white LED writes for the pupil model
+void benchAnalogWrite(int pin, int value) {     // Drive the real pin, then record white LED writes for the pupil model
+  analogWrite(pin, value);
+
   bool lit = false;
   for (int i = 0; i < numWhitePins; i++) {
     if (pin == whitePins[i]) whiteLevels[i] = value;

@@ -49,6 +49,7 @@ void batterySetup();    // the setup() of the battery indicator
 void batteryLoop();     // the loop() of the battery indicator, call it every pass
 
 // testbench_core_NJS.cpp - simulated trigger and Serial Plotter output
+int benchTrigger();
 void benchUpdate();
 void readGraphChoice();
 void plot(unsigned long now);

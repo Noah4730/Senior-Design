@@ -1,21 +1,27 @@
-// Ssimulated trigger, model updates, and Serial Plotter output
+// Trigger input (real or simulated), model updates, and Serial Plotter output
 
 #include "variables.h"
 #include "functions.h"
 
-int benchDigitalRead(int pin) {                 // Every trigger check in the product also updates the test bench
-  benchUpdate();
-  if (pin != triggerPin) return digitalRead(pin);
+int benchTrigger() {                            // Real trigger pin, or the simulated trigger when simulateTrigger is true
+  if (!simulateTrigger) return digitalRead(triggerPin);
   if (simTriggerEnd > 0 && millis() >= simTriggerEnd) return LOW;    // Simulated trigger release
   return (millis() < simTriggerStart) ? LOW : HIGH;                  // Simulated trigger
 }
 
+int benchDigitalRead(int pin) {                 // Every trigger check in the product also updates the test bench
+  benchUpdate();
+  if (pin != triggerPin) return digitalRead(pin);
+  return benchTrigger();
+}
 
-void benchUpdate() {                            // Track the models and print a point every plotIntervals[graph - 1] ms
+
+void benchUpdate() {                            // Track the models and, while the trigger is held, print a point every plotIntervals[graph - 1] ms
   unsigned long now = millis();
-  trackHearing(now);
+  trackHearing(now);                            // Models keep tracking after release so they pick up correctly on the next pull
   trackLight(now);
 
+  if (benchTrigger() == LOW) return;            // Only plot while the trigger and hardware are running
   if (now - lastPlot < plotIntervals[graph - 1]) return;
   lastPlot = now;
   readGraphChoice();

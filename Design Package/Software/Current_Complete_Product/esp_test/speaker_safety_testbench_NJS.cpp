@@ -1,10 +1,10 @@
-// Simulated mic, silent speaker, running RMS, and speaker dB
+// Mic input (real or simulated), speaker output, running RMS, and speaker dB
 
 #include "variables.h"
 #include "functions.h"
 
-int benchAnalogRead(int pin) {                  // Speaker dB plus the room offset and noise
-  if (pin != soundSensorPin) return analogRead(pin);
+int benchAnalogRead(int pin) {                  // Real mic, or the speaker dB plus the room offset and noise when simulateMic is true
+  if (pin != soundSensorPin || !simulateMic) return analogRead(pin);
 
   unsigned long now = millis();
   int volumeNow = (volumePhase == -1) ? 0 : volumeLevel;
@@ -14,8 +14,13 @@ int benchAnalogRead(int pin) {                  // Speaker dB plus the room offs
   return constrain((int)((dB - 30) / 104.0 * 4095), 0, 4095);       // Inverse of the product's raw to dB conversion
 }
 
-void benchTone(int, int) {}                     // The speaker stays silent
-void benchNoTone(int) {}
+void benchTone(int pin, int frequency) {        // Play the real speaker
+  tone(pin, frequency);
+}
+
+void benchNoTone(int pin) {
+  noTone(pin);
+}
 
 
 float runningRms(unsigned long now) {           // The product's running RMS

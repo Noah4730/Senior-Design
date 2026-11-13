@@ -13,19 +13,20 @@
 // File logFile;
 
 // const int greenPins[] = {16, 17, 18, 19, 21};
-const int greenPins[] = {16, 17, 18, 4, 13};
+// Arduino uses GPIO numbers, not module pin numbers. Module pins are noted on each line.
+const int greenPins[] = {32, 23, 22, 21, 19};     // module pins 8, 37, 36, 33, 31
 // const int whitePins[] = {22, 23, 25, 26, 27};
-const int whitePins[] = {32, 32, 32, 32, 32};
+const int whitePins[] = {18, 17, 16, 14, 13};     // module pins 30, 28, 27, 13, 16
 const int numGreenPins = 5;
 const int numWhitePins = 5;
 // const int speakerPin = 32;
-const int speakerPin = 19;
+const int speakerPin = 25;                        // module pin 10
 // const int volumePin = 33;
-const int volumePin = 21;
+const int volumePin = 26;                         // module pin 11
 // const int triggerPin = 34;
-const int triggerPin = 39;
+const int triggerPin = 34;                        // module pin 6 (input only)
 // const int soundSensorPin = 35;
-const int soundSensorPin = 36;
+const int soundSensorPin = 35;                    // module pin 7 (input only, ADC1)
 const int LVmin = 20;
 const int LVmax = 80;
 const int HVmin = 150;
@@ -87,7 +88,7 @@ inline int micCount = 0;                               // Number of mic samples 
 // Christina Walker - sound safety controller (safety_CW.cpp)
 inline int safetyGain= 255;
 // const int micPin= 34;       // analog input pin the microphone is wired to
-const int micPin= 36;
+const int micPin= soundSensorPin;   // same mic as soundSensorPin (GPIO35, module pin 7)
 
 //safety limit placeholders
 // if measured sound goes above this level, speaker output should be reduced
@@ -127,9 +128,9 @@ const int fullGain= 255;
 const int safetyGainStep= 5;
 
 // Christina Walker - battery indicator (battery_CW.cpp)
-const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin)
+const int batteryPin=36; //battery voltage input: GPIO36 / SENSOR_VP, module pin 4 (ADC1, input only) - placeholder, confirm wiring
 // const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
-const int buzzerPin=22;
+const int buzzerPin=33;  //low battery buzzer: GPIO33, module pin 9 - placeholder, confirm wiring
 
 // scaling from the divider
 const float dividerRatio=(100000.0+12000.0)/12000.0;
