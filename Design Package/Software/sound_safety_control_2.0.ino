@@ -1,5 +1,9 @@
-const int micPin= A2;        // analog input pin the microphone is wired to
-const int triggerPin= A0;    // digital input- HIGH means sound system is running
+//Sound safety control
+
+// const int micPin= A2;        // analog input pin the microphone is wired to
+const int micPin= 36;
+// const int triggerPin= A0;    // digital input- HIGH means sound system is running
+const int triggerPin= 39;
 
 //safety limit placeholders
 // if measured sound goes above this level, speaker output should be reduced
@@ -10,7 +14,7 @@ const float exposureLimitDb= 110.0;  //lower threshold where exposure time is re
 
 //maximum accumulated exposure time at/above exposureLimitDb
 //currently placeholder and will be replaced with approved value
-const unsigned long maxExposureTime= 30000UL;  //30 seconds- max time allowed at/above exposureLimitDb before shutdown (placeholder)
+const unsigned long maxExposureTime= 30000UL;  //30 seconds- max cumulative time allowed at/above exposureLimitDb before shutdown (placeholder)
 
 //timing
 
@@ -33,6 +37,15 @@ unsigned long exposureTime= 0;  //running total (ms) of time spent at/above expo
 
 //system state
 bool safetyShutdown= false; //latches TRUE once maxExposureTime is exceeded. Stays true (keeps output reduced) until trigger goes LOW
+
+// safetyGain: 255= full output, 0= silent. The safety controller lowers it, the speaker code reads it.
+int safetyGain= 255;
+
+//speaker volume control
+// the speaker code (Noah's file) makes the sound, so it sets the volume itself:
+// it multiplies its pattern volume by (safetyGain / 255) every time it updates the volume.
+const int fullGain= 255;  // safetyGain setting for full speaker output
+const int safetyGainStep= 5;    // how much safetyGain drops each time reduceSpeakerOutput() is called
 
 void setup() {
 
@@ -69,7 +82,8 @@ void loop() {
       //read microphone
       int sensorValue= analogRead(micPin);  // raw analog mic reading, 0-1023
 
-      float dB= 30.0+(sensorValue/1023.0)*104.0;
+      // float dB= 30.0+(sensorValue/1023.0)*104.0;
+      float dB= 30.0+(sensorValue/4095.0)*104.0;
 
       //display reading
       Serial.print("Raw: ");
@@ -157,6 +171,7 @@ void loop() {
       highReadingCount= 0;
       soundLimitEventLogged= false;
       lastExposureTime= currentTime;
+      restoreSpeakerOutput();   //put the speaker output back to full for next activation
     }
   }
 }
@@ -181,9 +196,26 @@ void reduceSpeakerOutput() {
     exact code cannot be written yet because the
     amplifier/control circuit has not been finalized
   */
-  Serial.println("Reduce Speaker Output");   // temp for the real hardware command, once the amp/control circuit is finalized
+  /*
+    lowers the speaker output by stepping safetyGain down.
+    The speaker code reads safetyGain and scales its volume
+    by it, so a lower level means a quieter speaker.
+    Each call lowers safetyGain by safetyGainStep (never below 0), so
+    repeated calls fade the output down until it is silent.
+    The level stays reduced until restoreSpeakerOutput() is called.
+  */
+  if (safetyGain > 0) {
+    safetyGain-= safetyGainStep;
+    if (safetyGain < 0) safetyGain= 0;
+  }
+  // Serial.println("Reduce Speaker Output");   // temp for the real hardware command, once the amp/control circuit is finalized
+  Serial.println("Reduce Speaker Output");
 }
-//CW
 
+// restore speaker output
+// called when the trigger goes LOW, puts the amp back to full output
 
+void restoreSpeakerOutput() {
+  safetyGain= fullGain;   //back to full output
+}
 
