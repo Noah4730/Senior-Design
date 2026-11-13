@@ -42,14 +42,20 @@ const float pupilBaseline = 3.21;
 // const int chipSelect = 10;
 // File logFile;
 
-const int greenPins[] = {16, 17, 18, 19, 21};
-const int whitePins[] = {22, 23, 25, 26, 27};
+// const int greenPins[] = {16, 17, 18, 19, 21};
+const int greenPins[] = {16, 17, 18, 4, 13};
+// const int whitePins[] = {22, 23, 25, 26, 27};
+const int whitePins[] = {32, 32, 32, 32, 32};
 const int numGreenPins = 5;
 const int numWhitePins = 5;
-const int speakerPin = 32;
-const int volumePin = 33;
-const int triggerPin = 34;
-const int soundSensorPin = 35;
+// const int speakerPin = 32;
+const int speakerPin = 19;
+// const int volumePin = 33;
+const int volumePin = 21;
+// const int triggerPin = 34;
+const int triggerPin = 39;
+// const int soundSensorPin = 35;
+const int soundSensorPin = 36;
 const int LVmin = 20;
 const int LVmax = 80;
 const int HVmin = 150;
@@ -107,6 +113,70 @@ inline int micMin = 4095;
 inline int micMax = 0;
 inline long micSum = 0;
 inline int micCount = 0;                               // Number of mic samples in the current window
+
+// Christina Walker - sound safety controller (safety_CW.cpp)
+inline int safetyGain= 255;
+// const int micPin= 34;       // analog input pin the microphone is wired to
+const int micPin= 36;
+
+//safety limit placeholders
+// if measured sound goes above this level, speaker output should be reduced
+// const float soundLimitDb= 130.0;   // immediate threshold (placeholder)
+
+//exposure time is tracked when the sound is at/above this dB level
+// const float exposureLimitDb= 110.0;  //lower threshold where exposure time is recorded (placeholder)
+
+//maximum accumulated exposure time at/above exposureLimitDb
+//currently placeholder and will be replaced with approved value
+const unsigned long maxExposureTime= 30000UL;  //30 seconds- max cumulative time allowed at/above exposureLimitDb before shutdown (placeholder)
+
+//timing
+
+inline unsigned long lastSampleTime= 0;  //timestamp (ms) of the last microphone reading. used for the 50ms sample timer
+
+//how often microphone is checked
+const unsigned long sampleInterval= 50;  //sampling period (ms). Also the time slice added to exposureTime each loud sample
+
+inline unsigned long lastExposureTime= 0;  //timestamp used to calculate actual elapsed exposure time
+
+//counts consecutive readings at/above the exposure threshold
+inline int highReadingCount= 0;
+const int requiredHighReadings= 3;  //number of consecutive high readings required before exposure is accumulated
+
+//tracks whether the immediate sound-limit event has already been logged
+inline bool soundLimitEventLogged= false;
+
+//total exposure time
+inline unsigned long exposureTime= 0;  //running total (ms) of time spent at/above exposureLimitDb since the system was last activated
+
+//system state
+inline bool safetyShutdown= false; //latches TRUE once maxExposureTime is exceeded. Stays true (keeps output reduced) until trigger goes LOW
+
+//speaker volume control
+const int fullGain= 255;
+const int safetyGainStep= 5;
+
+// Christina Walker - battery indicator (battery_CW.cpp)
+const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin)
+// const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
+const int buzzerPin=22;
+
+// scaling from the divider
+const float dividerRatio=(100000.0+12000.0)/12000.0;
+
+// battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
+// const float lowBatteryVoltage=17.5;
+const float lowBatteryVoltage=16.5;
+
+// the reading is checked once a second, and the warning only starts after several low
+// readings in a row, so one dip (for example when the speaker draws power) does not trigger it
+inline unsigned long lastCheck=0;                  //timestamp (ms) of the last battery check
+const unsigned long checkInterval=1000;     //time (ms) between battery checks
+inline int lowReadingCount=0;                      //how many checks in a row were below the threshold
+const int requiredLowReadings=5;            //low readings in a row needed before warning
+
+inline unsigned long lastWarning=0;          //timestamp (ms) of the last time we sounded the buzzer
+const unsigned long warningInterval=5000;   //minimum gap (ms) between buzzer warnings= 5 seconds
 
 
 
