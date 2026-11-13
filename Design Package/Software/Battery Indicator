@@ -4,17 +4,19 @@
 //    dividerRatio: battery volts divided by the volts at the sense pin.
 //    lowBatteryVoltage: the battery voltage that counts as 20% left (pack is
 //       5 lithium-ion cells, about 21 V full, about 18.5 V nominal). Left at 0.0
-//       for now, which keeps warning off. Take it from the cells' discharge curve.
+//       for now, which keeps warning off. Take it from the cells' discharge curve.   (added: no longer 0.0, see the note below)
+//    (added: lowBatteryVoltage is now set to 16.5 V, an estimate for 20% left. Confirm it with the cells' discharge curve.)
 
-const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin)
-const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
+const int batteryPin=35; //battery voltage input (ESP32 GPIO35, ADC1, input only- placeholder pin) (added: GPIO35 is free on the PCB, needs a wire from the divider. Pin unchanged)
+// const int buzzerPin=33;  //low battery buzzer (ESP32 GPIO number- placeholder pin)
+const int buzzerPin=22;  //(added: GPIO22 is free on the PCB, needs a wire. GPIO33 drives an LED channel on the PCB)
 
 // scaling from the divider
-// the pin must never see more than about 3 V. With a full pack at 21 V the ratio has to be at least 7
-const float dividerRatio=8.0;   //placeholder: battery volts / volts at the pin. MEASURE this for the real PCB
+const float dividerRatio=(100000.0+12000.0)/12000.0;   //(added: (R1+R2)/R2 with R1=100k (battery side) and R2=12k (GND side) = 9.33. At 21V the pin sees 2.25V. Add a 0.1uF capacitor from the pin to GND)
 
 // battery voltage that counts as 20% left (full is about 21 V, nominal about 18.5 V)
-const float lowBatteryVoltage=0.0;   //placeholder threshold- real "20% battery" voltage TBD, from the cell datasheet
+// const float lowBatteryVoltage=17.5;   //(added: first estimate, about 3.5 V per cell. Too high for the 20%-left point you wanted)
+const float lowBatteryVoltage=16.5;   //(added: warns when about 20% of the battery is left, about 3.3 V per cell on a 5 cell lithium-ion pack (21 V full, about 15 V empty). Confirm with your cell's discharge curve)
 
 // the reading is checked once a second, and the warning only starts after several low
 // readings in a row, so one dip (for example when the speaker draws power) does not trigger it
@@ -38,13 +40,17 @@ void loop(){
   if (millis()-lastCheck >= checkInterval){   //time for the next battery check?
     lastCheck=millis();
 
-    //8 quick readings to smooth out noise. analogReadMilliVolts gives the
+    //8 quick readings to smooth out noise. (added: now 3 readings) analogReadMilliVolts gives the
     // voltage at the pin in millivolts (the ESP32 corrects for its own ADC error).
-    float pinMillivolts=0.0;
-    for (int i=0; i<8; i++){
+    // float pinMillivolts=0.0;
+    // for (int i=0; i<8; i++){
+    float pinMillivolts=analogReadMilliVolts(batteryPin);   //(added: starts from the first real reading instead of 0.0)
+    // for (int i=1; i<8; i++){   //(added: starts at 1 because reading 0 was just taken above)
+    for (int i=1; i<3; i++){  
       pinMillivolts+=analogReadMilliVolts(batteryPin);
     }
-    pinMillivolts/=8.0;
+   
+    pinMillivolts/=3.0;   
 
     //voltage at pin, scaled back up to the real battery voltage
     float batteryVoltage=(pinMillivolts/1000.0)*dividerRatio;
@@ -72,3 +78,4 @@ void loop(){
     }
   }
 }
+
